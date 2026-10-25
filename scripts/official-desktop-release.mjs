@@ -1,0 +1,105 @@
+/** Consume fixed official binary releases; never fetch a source checkout. */
+import { createHash } from 'node:crypto'
+import { createReadStream, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, renameSync, cpSync, writeFileSync } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
+import { Readable } from 'node:stream'
+import { execFileSync } from 'node:child_process'
+import { join, resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
+import {officialRuntimeLock,officialDesktopArtifact,assertOfficialPrimaryRuntime,writeOfficialRuntimeProvenance,verifyOfficialRuntimeProvenance} from './official-runtime-provenance.mjs'
+export const lock = officialRuntimeLock
+// Older copies rewrote relative links to extraction-directory absolute paths.
+const COPY_FORMAT = 3
+function cacheIdentity(target, artifact) {
+  return JSON.stringify({ copyFormat: COPY_FORMAT, npmDshVersion: lock.version, target, artifact })
+}
+export function copyOfficialRuntime(source, destination) {
+  // Replace an earlier prepared payload rather than retaining stale links/files.
+  rmSync(destination, { recursive: true, force: true })
+  cpSync(source, destination, { recursive: true, force: true, dereference: false, verbatimSymlinks: true })
+}
+export function isOfficialReleaseCacheValid(destination, target) {
+  try {
+    const artifact = officialDesktopArtifact(target)
+    if (readFileSync(join(destination, 'receipt.json'), 'utf8') !== cacheIdentity(target, artifact)) return false
+    const runtime = join(destination, 'runtime/primary-runtime')
+    const [platform] = target.split('-')
+    verifyOfficialRuntimeProvenance(runtime,target)
+    return [
+      join(runtime, 'dependencies/python', platform === 'mac' ? 'bin/python3' : 'python.exe'),
+      join(runtime, 'dependencies/node/bin', platform === 'mac' ? 'node' : 'node.exe'),
+      join(runtime, 'dependencies/pnpm/bin/pnpm.cjs'),
+      join(destination, 'runtime/cli/command-manager.js'),
+      join(destination, 'runtime/office-skills'),
+    ].every(existsSync)
+  } catch { return false }
+}
+export async function verifyArtifact(path, artifact) {
+  const digest = createHash('sha512'); let size = 0
+  for await (const chunk of createReadStream(path)) { size += chunk.length; digest.update(chunk) }
+  if (size !== artifact.size || digest.digest('base64') !== artifact.sha512) throw new Error('Official Desktop release size or SHA-512 mismatch')
+}
+function findResources(directory, depth = 0) {
+  if (existsSync(join(directory, 'runtime/primary-runtime/runtime.json'))) return directory
+  if (depth > 8) return
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const found = findResources(join(directory, entry.name), depth + 1)
+    if (found) return found
+  }
+}
+function nestedArchive(directory, depth = 0) {
+  if (depth > 5) return
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    if (entry.isFile() && /^app-.*\.7z$/.test(entry.name)) return path
+    if (entry.isDirectory()) { const found = nestedArchive(path, depth + 1); if (found) return found }
+  }
+}
+export async function prepareOfficialRelease(desktopRoot, target) {
+  const artifact = officialDesktopArtifact(target)
+  const cache = join(desktopRoot, 'build/official-release-cache'); mkdirSync(cache, { recursive: true })
+  const destination = join(cache, target + '-' + artifact.version)
+  const receipt = join(destination, 'receipt.json')
+  const identity = cacheIdentity(target, artifact)
+  if (isOfficialReleaseCacheValid(destination, target)) return destination
+  const archive = process.env.WORKDSH_OFFICIAL_DESKTOP_ARCHIVE ? resolve(process.env.WORKDSH_OFFICIAL_DESKTOP_ARCHIVE) : join(cache, new URL(artifact.url).pathname.split('/').at(-1))
+  if (!existsSync(archive)) {
+    const partial = archive + '.partial'
+    const response = await fetch(artifact.url, { signal: AbortSignal.timeout(600_000) })
+    if (!response.ok || !response.body) throw new Error('Official Desktop download failed: ' + response.status)
+    try { await pipeline(Readable.fromWeb(response.body), createWriteStream(partial)); await verifyArtifact(partial, artifact); renameSync(partial, archive) }
+    finally { rmSync(partial, { force: true }) }
+  }
+  await verifyArtifact(archive, artifact)
+  const temporary = mkdtempSync(join(cache, 'extract-'))
+  try {
+    if (target.startsWith('mac-')) execFileSync('/usr/bin/ditto', ['-x', '-k', archive, temporary], { stdio: 'inherit' })
+    else {
+      const require = createRequire(import.meta.url)
+      const sevenZip = process.env.WORKDSH_7ZIP ?? require('7zip-bin').path7z
+      execFileSync(sevenZip, ['x', '-y', archive, '-o' + temporary], { stdio: 'inherit' })
+      const inner = nestedArchive(temporary)
+      if (inner) execFileSync(sevenZip, ['x', '-y', inner, '-o' + join(temporary, 'application')], { stdio: 'inherit' })
+    }
+    const resources = findResources(temporary)
+    if (!resources) throw new Error('Official release has no reusable runtime resources')
+    const metadata = JSON.parse(readFileSync(join(resources, 'runtime/primary-runtime/runtime.json'), 'utf8'))
+    assertOfficialPrimaryRuntime(metadata,target)
+    if (!existsSync(join(resources, 'runtime/cli/command-manager.js')) || !existsSync(join(resources, 'runtime/office-skills'))) throw new Error('Official release is missing command/Office resources')
+    rmSync(destination, { recursive: true, force: true }); mkdirSync(destination)
+    for (const name of ['primary-runtime', 'office-skills', 'cli']) copyOfficialRuntime(join(resources, 'runtime', name), join(destination, 'runtime', name))
+    writeOfficialRuntimeProvenance(join(destination,'runtime/primary-runtime'),target)
+    writeFileSync(receipt, identity)
+    if (!isOfficialReleaseCacheValid(destination, target)) throw new Error('Copied official runtime is incomplete or has broken executable links')
+    return destination
+  } finally {
+    // Best effort: the payload above is already copied and verified, so a
+    // leftover extraction tree must not fail the build. On Windows an indexer,
+    // antivirus scan or a still-open archive handle can hold the (multi-thousand
+    // file) directory for a while — retry once, then leave it and say so.
+    try { rmSync(temporary, { recursive: true, force: true }) }
+    catch { console.warn('Left the temporary extraction directory behind: ' + temporary) }
+  }
+}

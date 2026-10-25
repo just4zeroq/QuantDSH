@@ -1,0 +1,10 @@
+{
+  "identifier": "workdsh-carrier",
+  "description": "WorkDSH 载体窗口（入口 / 企业登录 / 加载页）能力。对应 Electron connection-preload.cjs 暴露给载体页的 IPC：仅 workdsh_navigate 与 workdsh_enterprise_login 两个应用命令，配合 core 事件与窗口基础能力。运行时的 DSH 工作区页面（http://127.0.0.1:<port>）在 Electron 中没有任何 preload，因此这里不授予 remote 能力，其 IPC 一律被拒绝。",
+  "windows": ["workdsh-window-*", "workdsh-browser-worker"],
+  "local": true,
+  "permissions": [
+    "core:default",
+    "core:event:default"
+  ]
+}

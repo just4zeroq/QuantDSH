@@ -1,0 +1,15 @@
+# Normalise line endings so the tree stays identical on Windows, macOS and CI.
+* text=auto eol=lf
+
+# Binary assets must never be mangled by line-ending conversion.
+*.png   binary
+*.ico   binary
+*.icns  binary
+*.woff  binary
+*.woff2 binary
+*.zip   binary
+*.gz    binary
+
+# Generated / vendored noise should not skew language statistics or diffs.
+src-tauri/Cargo.lock linguist-generated=true
+package-lock.json    linguist-generated=true

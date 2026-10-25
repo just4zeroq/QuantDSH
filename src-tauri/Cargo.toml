@@ -1,0 +1,68 @@
+[package]
+name = "workdsh-desktop-tauri"
+version = "3.0.0-alpha.3"
+description = "QuantDSH Tauri carrier for a pinned DeepSeek Harness runtime Profile"
+default-run = "QuantDSH"
+edition = "2021"
+rust-version = "1.82"
+
+[lib]
+name = "workdsh_desktop"
+path = "src/lib.rs"
+
+[[bin]]
+name = "QuantDSH"
+path = "src/main.rs"
+
+[dependencies]
+tauri = { version = "2.12.5", features = ["wry", "unstable", "image-png", "devtools"] }
+tauri-plugin-dialog = "2.8.3"
+tauri-plugin-opener = "2.7.2"
+tauri-plugin-single-instance = "2.5.4"
+serde = { version = "1", features = ["derive"] }
+# `preserve_order` keeps object keys in insertion order, which is what
+# `JSON.stringify` does. The Profile digest, package.json rewrites and
+# pnpm-workspace.yaml all inherit JavaScript ordering; a sorted map would make
+# the digest differ from the Electron carrier's.
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+axum = "0.8"
+http = "1"
+regex = "1"
+url = "2"
+libc = "0.2"
+sha2 = "0.10"
+hex = "0.4"
+rand = "0.8"
+tower = { version = "0.5", features = ["timeout", "util"] }
+uuid = { version = "1", features = ["v4"] }
+yaml-rust = "0.4.5"
+# Offline runtime import: tar reader + pure-Rust gzip. gzip is the deliberate
+# choice over zstd/7z — `scripts/make-runtime-pack.mjs` only needs the `tar`
+# binary every supported OS already ships, and flate2 stays pure Rust.
+flate2 = "1"
+tar = "0.4"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+  "Win32_System_Memory",
+  "Win32_System_Environment",
+  "Win32_System_ProcessStatus",
+  "Win32_UI_Shell",
+] }
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

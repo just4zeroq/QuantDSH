@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WorkDSH</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111113; color: #e8e8ea;
+    font: 14px/1.6 system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  main { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+  .spinner { width: 28px; height: 28px; border: 2px solid #3a3a40; border-top-color: #7f7fdd; border-radius: 50%; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #status { color: #9a9aa2; }
+  #error { color: #e24b4a; white-space: pre-wrap; max-width: 560px; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <div class="spinner" id="spinner"></div>
+  <div id="status">正在启动本地工作区…</div>
+  <div id="error"></div>
+</main>
+<script>
+  // The WorkDSH carrier never loads a bundled frontend: every surface (entry,
+  // enterprise login, loading) is served by the Rust `workdsh://` protocol, and
+  // the workspace itself is the official Host on 127.0.0.1. This placeholder is
+  // only reachable through `tauri dev`'s built-in asset server.
+  window.__WORKDSH_ERROR__ = (message) => {
+    document.getElementById('spinner').style.display = 'none'
+    document.getElementById('status').textContent = '启动失败'
+    document.getElementById('error').textContent = message
+  }
+</script>
+</body>
+</html>
