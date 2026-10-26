@@ -270,6 +270,28 @@ Python 侧 `numpy` 锁 2.3.5。而且版本号相同 ≠ 行为相同：nvm 的 
 `enterpriseEnvironment()` 用 `dirname(node)` 前置 `PATH`，指向 `C:\Program Files\nodejs`
 等于把整个系统目录暴露给 Host 及其全部子进程，企业隔离面当场破裂。
 
+### 7.1 可写 Profile 没有 `node_modules` 是正常态
+
+依赖图有两个来源，别把它们混为一谈：
+
+| 位置 | 内容 | 归谁 |
+| --- | --- | --- |
+| `<runtime>/profiles/quantdsh` | 完整安装图 + `profile-installation.json` 锚点（646 MB / 35790 文件） | 安装包，只读 |
+| `<userData>/dsh-home/profiles/quantdsh` | `dependencies` 恒为 `{}`，只有 `cordis.yml` / `pnpm-workspace.yaml` / `package.json` | 用户，可写 |
+
+Host 由 `official_host_launcher` 从**安装包**的 `profile-boot.js` 起，并把 `anchor` 指向安装包的
+`profile-installation.json`，所以默认依赖（含 6 个 `quantdsh-plugin-*`）全部由安装包解析。可写
+Profile 只承载**用户自己加的**包 —— 它没有 `node_modules` 就是在说"我一个都没加"，**不要为了
+让目录存在而手动 `pnpm install`**，那会把 646 MB 的依赖图原样复制一份，还和 runtime 版本漂移。
+
+唯一病态组合是「`dependencies` 非空 + `node_modules` 丢失」（磁盘清理、安装中途失败）。
+`materialize_runtime_profile` 的所有重装闸门都以 `modules.exists()` 为前提，过去这种状态永远
+`changed == false`：Host 照旧起得来，只是插件少几个，且**没有任何报错**。现在
+`declares_dependencies()` 会把这种状态判成待安装，`plugin install` 失败时会带着真实错误回到
+入口页（`logs/plugin-operation-failure.log`），不再静默降级。
+
+自查一行：读 `dsh-home/profiles/quantdsh/package.json` 的 `dependencies`，空 = 健康。
+
 ## 八、致命失败
 
 没有额外的恢复面，只有三条明确出口：

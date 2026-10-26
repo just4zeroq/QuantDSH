@@ -215,6 +215,22 @@ fn ordered_json_option(value: &Option<Yaml>) -> String {
     }
 }
 
+/// Whether the member profile declares packages of its own.
+///
+/// The installation-owned defaults are never written here, so any entry in
+/// `dependencies`/`optionalDependencies` is a user (or plugin-manager) addition
+/// that only the profile's own `node_modules` can satisfy.
+fn declares_dependencies(manifest: &Path) -> bool {
+    let Ok(current) = read_json(manifest) else { return false };
+    ["dependencies", "optionalDependencies"].iter().any(|section| {
+        current
+            .get(*section)
+            .and_then(Value::as_object)
+            .map(|map| !map.is_empty())
+            .unwrap_or(false)
+    })
+}
+
 pub fn materialize_runtime_profile(source: &Path, home: &Path) -> Result<MaterializedProfile, String> {
     let target = home.join("profiles").join("quantdsh");
     let release = read_json(&source.join("package.json"))?;
@@ -338,6 +354,18 @@ pub fn materialize_runtime_profile(source: &Path, home: &Path) -> Result<Materia
                 .any(|section| previous_base.get(*section) != base.get(*section));
             changed |= dependencies_changed && modules.exists();
         }
+    }
+    // The member profile owns only explicit additions; the installation anchor
+    // supplies every default, so a profile with an empty `dependencies` map is a
+    // complete steady state *without* a `node_modules` tree (materializing one
+    // would duplicate the whole 646 MB installation graph). Every other gate
+    // above only reinstalls when a tree already exists, which leaves one hole: a
+    // profile that once declared packages and then lost its tree would be stuck
+    // forever — the Host boots off the installation graph, silently loads fewer
+    // plugins, and reports nothing. Treat "declared but absent" as pending so the
+    // caller installs, and if that fails the real error reaches the entry screen.
+    if !modules.exists() && declares_dependencies(&manifest) {
+        changed = true;
     }
     let policy_changed = update_package_policy(source, &target)?;
     if policy_changed && modules.exists() {
@@ -784,6 +812,55 @@ mod tests {
             rest = &tail[end..];
         }
         assert!(urls >= 2, "both boot imports must be file URLs: {script}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A profile whose declared packages lost their tree must ask for an
+    /// installation instead of booting with silently missing plugins, and a
+    /// profile that never declared anything must stay install-free — otherwise
+    /// every launch would materialize a 646 MB duplicate of the installation.
+    #[test]
+    fn declared_dependencies_without_a_tree_force_installation() {
+        let root = std::env::temp_dir().join(format!("quantdsh-profile-changed-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let source = root.join("quantdsh-runtime").join("profiles").join("quantdsh");
+        let home = root.join("home");
+        let dsh = source.join("node_modules").join("@deepseek-ai").join("dsh");
+        std::fs::create_dir_all(&dsh).expect("fixture");
+        std::fs::create_dir_all(&home).expect("fixture");
+        std::fs::write(
+            source.join("package.json"),
+            r#"{"name":"quantdsh-desktop-installation","packageManager":"pnpm@11.28.5","dependencies":{}}"#,
+        )
+        .expect("fixture");
+        std::fs::write(dsh.join("package.json"), r#"{"version":"0.2.1-rc.2"}"#).expect("fixture");
+
+        // Fresh profile: the installation graph already covers every default.
+        let fresh = super::materialize_runtime_profile(&source, &home).expect("materialize");
+        assert!(!fresh.changed, "an empty dependency set must not trigger an installation");
+        assert!(!fresh.profile.join("node_modules").exists());
+
+        // The user adds a package, then the tree disappears (cleanup, failed move).
+        std::fs::write(
+            fresh.profile.join("package.json"),
+            r#"{"name":"quantdsh-member-profile","private":true,"type":"module","packageManager":"pnpm@11.28.5","dependencies":{"left-pad":"1.3.0"}}"#,
+        )
+        .expect("fixture");
+        let degraded = super::materialize_runtime_profile(&source, &home).expect("materialize");
+        assert!(degraded.changed, "a declared package without node_modules must reinstall");
+
+        // Once the install succeeds the profile is a steady state again
+        // (`prepare_profile` marks it right after `plugin install` returns 0).
+        std::fs::create_dir_all(degraded.profile.join("node_modules")).expect("fixture");
+        super::mark_profile_updated(&source, &degraded.profile).expect("mark updated");
+        let settled = super::materialize_runtime_profile(&source, &home).expect("materialize");
+        assert!(!settled.changed, "an installed tree must not reinstall on every launch");
+
+        // A failed install must keep the profile pending so the next launch retries.
+        let pending: serde_json::Value =
+            super::read_json(&settled.profile.join(super::BASE_STATE)).expect("state");
+        assert_eq!(pending.get("pendingInstallation"), None);
+
         let _ = std::fs::remove_dir_all(&root);
     }
 }
