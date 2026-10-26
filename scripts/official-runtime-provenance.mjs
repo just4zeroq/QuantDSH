@@ -5,7 +5,7 @@ import {join} from 'node:path'
 import {isDeepStrictEqual} from 'node:util'
 
 export const officialRuntimeLock=JSON.parse(readFileSync(new URL('../upstream.json',import.meta.url),'utf8'))
-export const OFFICIAL_PROVENANCE_FILE='.workdsh-source-artifact.json'
+export const OFFICIAL_PROVENANCE_FILE='.quantdsh-source-artifact.json'
 const exactVersion=/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
 export function officialDesktopArtifact(target,lock=officialRuntimeLock){
  const artifact=lock.desktopArtifacts?.[target]

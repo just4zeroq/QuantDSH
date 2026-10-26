@@ -1,7 +1,7 @@
 //! Hidden browser worker mode, mirroring `startBrowserWorker` from workdsh-main.ts.
 //!
 //! The browser-session provider spawns this executable again with
-//! `--workdsh-browser-worker-port=<port> --workdsh-browser-worker-profile=<dir>`
+//! `--quantdsh-browser-worker-port=<port> --quantdsh-browser-worker-profile=<dir>`
 //! and drives the hidden page over the Chrome DevTools Protocol.
 //!
 //! Platform notes:
@@ -29,18 +29,18 @@ pub struct BrowserWorkerRequest {
 
 /// workdsh-main.ts `browserWorkerRequest`.
 pub fn browser_worker_request(args: &[String]) -> Result<Option<BrowserWorkerRequest>, String> {
-    let port_arg = args.iter().find(|arg| arg.starts_with("--workdsh-browser-worker-port="));
+    let port_arg = args.iter().find(|arg| arg.starts_with("--quantdsh-browser-worker-port="));
     let Some(port_arg) = port_arg else { return Ok(None) };
-    let port: i64 = port_arg["--workdsh-browser-worker-port=".len()..]
+    let port: i64 = port_arg["--quantdsh-browser-worker-port=".len()..]
         .parse()
-        .map_err(|_| "Invalid WorkDSH browser worker arguments".to_string())?;
+        .map_err(|_| "Invalid QuantDSH browser worker arguments".to_string())?;
     let profile = args
         .iter()
-        .find(|arg| arg.starts_with("--workdsh-browser-worker-profile="))
-        .map(|arg| PathBuf::from(&arg["--workdsh-browser-worker-profile=".len()..]));
-    let profile = profile.ok_or_else(|| "Invalid WorkDSH browser worker arguments".to_string())?;
+        .find(|arg| arg.starts_with("--quantdsh-browser-worker-profile="))
+        .map(|arg| PathBuf::from(&arg["--quantdsh-browser-worker-profile=".len()..]));
+    let profile = profile.ok_or_else(|| "Invalid QuantDSH browser worker arguments".to_string())?;
     if !(1024..=65535).contains(&port) || !profile.is_absolute() || !profile.exists() {
-        return Err("Invalid WorkDSH browser worker arguments".to_string());
+        return Err("Invalid QuantDSH browser worker arguments".to_string());
     }
     Ok(Some(BrowserWorkerRequest { port: port as u16, profile }))
 }
@@ -49,7 +49,7 @@ fn announce_ready(announced: &AtomicBool) {
     if announced.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
         use std::io::Write;
         let mut stdout = std::io::stdout();
-        let _ = stdout.write_all(b"WORKDSH_BROWSER_WORKER_READY\n");
+        let _ = stdout.write_all(b"QUANTDSH_BROWSER_WORKER_READY\n");
         let _ = stdout.flush();
     }
 }
@@ -67,7 +67,7 @@ pub fn start_browser_worker<R: Runtime, M: Manager<R>>(
     }
     let handle = manager.app_handle().clone();
     let url: url::Url = "about:blank".parse().expect("about:blank is a valid URL");
-    let mut builder = WebviewWindowBuilder::new(&handle, "workdsh-browser-worker", WebviewUrl::External(url))
+    let mut builder = WebviewWindowBuilder::new(&handle, "quantdsh-browser-worker", WebviewUrl::External(url))
         .title("QuantDSH Browser Worker")
         .inner_size(1280.0, 800.0)
         .visible(false)

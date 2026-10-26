@@ -1,4 +1,4 @@
-//! Enterprise plugin inventory, mirroring workdsh apps/desktop/src/enterprise-plugins.ts.
+//! Enterprise plugin inventory, mirroring the upstream desktop's enterprise-plugins.ts.
 //! Enterprise delivery uses explicitly installed packages; never copies account data.
 
 use serde_json::{Map, Value};
@@ -30,7 +30,7 @@ fn section<'a>(manifest: &'a Value, name: &str) -> Option<&'a Map<String, Value>
     manifest.get(name).and_then(Value::as_object)
 }
 
-/// workdsh `installedEnterprisePlugins`.
+/// quantdsh `installedEnterprisePlugins`.
 pub fn installed_enterprise_plugins(profile: &Path, version: &str) -> Result<Vec<String>, String> {
     let manifest_file = profile.join("package.json");
     if !manifest_file.exists() {
@@ -96,7 +96,7 @@ async fn execute(
     Ok(())
 }
 
-/// workdsh `composeInstalledEnterprisePlugins`.
+/// quantdsh `composeInstalledEnterprisePlugins`.
 pub async fn compose_installed_enterprise_plugins(
     source: &Path,
     target: &Path,
@@ -183,7 +183,7 @@ mod tests {
     use super::*;
 
     fn temp_dir(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("workdsh-plugin-test-{name}-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("quantdsh-plugin-test-{name}-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }

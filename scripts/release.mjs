@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-/** Release orchestration for the WorkDSH Tauri carrier.
- *  Mirrors the workdsh Electron release chain:
+/** Release orchestration for the QuantDSH Tauri carrier.
+ *  Mirrors the quantdsh Electron release chain:
  *    prepare:deployment-config → pack profile → prepare runtime → prepare primary runtime
  *    → prepare command → generate icons → make runtime archive
  *    → tauri build → verify packaged artifact
  *  Usage:
- *    node scripts/release.mjs [--target win-x64|mac-arm64|mac-x64] [--source <workdsh root>] [--skip-build] [-- <extra tauri args>]
+ *    node scripts/release.mjs [--target win-x64|mac-arm64|mac-x64] [--source <quantdsh root>] [--skip-build] [-- <extra tauri args>]
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, renameSync, statSync } from 'node:fs'
@@ -23,24 +23,24 @@ function option(name, fallback) {
   return index >= 0 ? ownArgs[index + 1] : fallback
 }
 
-// `pack-workdsh-profile.mjs` reads `<source>/package.json` for two things: the
+// `pack-quantdsh-profile.mjs` reads `<source>/package.json` for two things: the
 // `@deepseek-ai/dsh` devDependency pin and `node_modules/pnpm`. Only the Web
 // application (`apps/web`) satisfies both; the repository root declares neither.
 // Its `PACKAGE_DIRECTORIES` resolve `../../packages/...`, which is the repo's
 // `packages/` when the source is `apps/web` — exactly what `apps/desktop`
-// README instructs (`node apps/desktop/scripts/pack-workdsh-profile.mjs apps/web`).
-const source = resolve(option('--source', process.env.WORKDSH_SOURCE ?? join(root, '..', 'workdsh', 'apps', 'web')))
+// README instructs (`node apps/desktop/scripts/pack-quantdsh-profile.mjs apps/web`).
+const source = resolve(option('--source', process.env.QUANTDSH_SOURCE ?? join(root, '..', 'quantdsh', 'apps', 'web')))
 const skipBuild = ownArgs.includes('--skip-build')
 const platform = process.platform
-const defaultTarget = platform === 'win32' ? 'win-x64' : `mac-${process.env.WORKDSH_MAC_ARCH ?? process.arch}`
+const defaultTarget = platform === 'win32' ? 'win-x64' : `mac-${process.env.QUANTDSH_MAC_ARCH ?? process.arch}`
 const target = option('--target', defaultTarget)
 if (!['win-x64', 'mac-arm64', 'mac-x64'].includes(target)) throw new Error(`Unsupported release target: ${target}`)
 if (target.startsWith('win-') && platform !== 'win32') throw new Error('Windows artifacts must be built on a native Windows host')
 if (target.startsWith('mac-') && platform !== 'darwin') throw new Error('macOS artifacts must be built on a native macOS host')
 
-if (!existsSync(join(source, 'package.json'))) throw new Error(`Built WorkDSH Web source not found: ${source}`)
+if (!existsSync(join(source, 'package.json'))) throw new Error(`Built QuantDSH Web source not found: ${source}`)
 if (!existsSync(join(source, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs'))) {
-  throw new Error(`WorkDSH Web dependencies are missing: ${source} (run \`corepack pnpm --dir apps/web install --frozen-lockfile\` and \`corepack pnpm --dir apps/web build\` in the workdsh checkout first)`)
+  throw new Error(`QuantDSH Web dependencies are missing: ${source} (run \`corepack pnpm --dir apps/web install --frozen-lockfile\` and \`corepack pnpm --dir apps/web build\` in the quantdsh checkout first)`)
 }
 
 function run(command, commandArgs, env = process.env) {
@@ -56,19 +56,19 @@ const script = name => join(root, 'scripts', name)
 // 1. Administrator-selected deployment configuration for this package.
 run(node, [script('prepare-deployment-config.mjs')])
 // 2. Pack the built owned sources into immutable archives.
-// workdsh's own release entry (`scripts/package-desktop-release.mjs`) always
-// packs into a timestamped candidate directory, because `pack-workdsh-profile.mjs`
+// quantdsh's own release entry (`scripts/package-desktop-release.mjs`) always
+// packs into a timestamped candidate directory, because `pack-quantdsh-profile.mjs`
 // refuses to overwrite one ("candidate archives are immutable"). A fixed path
 // here would make the second release of the same checkout fail, so mirror the
 // timestamped naming and hand the candidate to runtime preparation explicitly.
-const releaseDirectory = join(root, 'build', `workdsh-profile-release-${Date.now()}`)
-run(node, [script('pack-workdsh-profile.mjs'), source, releaseDirectory])
+const releaseDirectory = join(root, 'build', `quantdsh-profile-release-${Date.now()}`)
+run(node, [script('pack-quantdsh-profile.mjs'), source, releaseDirectory])
 // 3. Compose and verify the portable runtime Profile.
-run(node, [script('prepare-workdsh-runtime.mjs')], { ...process.env, WORKDSH_RELEASE_DIRECTORY: releaseDirectory })
+run(node, [script('prepare-quantdsh-runtime.mjs')], { ...process.env, QUANTDSH_RELEASE_DIRECTORY: releaseDirectory })
 // 4. Attach the locked official primary runtime (Node/pnpm/Python + office skills).
-run(node, [script('prepare-workdsh-primary-runtime.mjs')], { ...process.env, WORKDSH_MAC_ARCH: target === 'mac-x64' ? 'x64' : target === 'mac-arm64' ? 'arm64' : undefined })
+run(node, [script('prepare-quantdsh-primary-runtime.mjs')], { ...process.env, QUANTDSH_MAC_ARCH: target === 'mac-x64' ? 'x64' : target === 'mac-arm64' ? 'arm64' : undefined })
 // 5. Ship the official command manager and the installed dsh command.
-run(node, [script('prepare-workdsh-command.mjs')], { ...process.env, WORKDSH_MAC_ARCH: target === 'mac-x64' ? 'x64' : target === 'mac-arm64' ? 'arm64' : undefined })
+run(node, [script('prepare-quantdsh-command.mjs')], { ...process.env, QUANTDSH_MAC_ARCH: target === 'mac-x64' ? 'x64' : target === 'mac-arm64' ? 'arm64' : undefined })
 // 6. Derive the Tauri icon set from the shared brand artwork.
 run(node, [script('generate-icons.mjs')])
 // 7. Package the same runtime tree as the offline repair archive. A damaged or

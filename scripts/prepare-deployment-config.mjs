@@ -1,5 +1,5 @@
 /** Prepare public, administrator-selected deployment configuration for one package.
- *  Faithful port of workdsh apps/desktop/scripts/prepare-deployment-config.ts. */
+ *  Faithful port of the upstream desktop's prepare-deployment-config.ts. */
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -31,7 +31,7 @@ export function parseDeploymentConfig(value) {
 }
 
 export function prepareDeploymentConfig(outputDirectory, inputFile) {
-  const output = join(outputDirectory, 'workdsh-config.json')
+  const output = join(outputDirectory, 'quantdsh-config.json')
   // A personal build, or a failed company build, must never reuse another
   // organization's previously generated configuration.
   rmSync(output, { force: true })
@@ -46,7 +46,7 @@ export function prepareDeploymentConfig(outputDirectory, inputFile) {
 
 export default function beforePack() {
   const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-  prepareDeploymentConfig(join(desktopRoot, 'build', 'deployment'), process.env.WORKDSH_DEPLOYMENT_CONFIG)
+  prepareDeploymentConfig(join(desktopRoot, 'build', 'deployment'), process.env.QUANTDSH_DEPLOYMENT_CONFIG)
 }
 
 const invokedPath = process.argv[1]

@@ -25,14 +25,14 @@ use sha2::{Digest, Sha256};
 
 /// Must match `productName` and the `manifest.product` the release pipeline
 /// writes; a pack for another product is rejected.
-pub const PRODUCT: &str = "WorkDSH";
+pub const PRODUCT: &str = "QuantDSH";
 /// Marker file the official release ships at `<root>/primary-runtime/runtime.json`.
 pub const RUNTIME_JSON: &str = "primary-runtime/runtime.json";
 pub const MANIFEST_NAME: &str = "manifest.json";
 pub const CURRENT_NAME: &str = "current.json";
 pub const LOCK_NAME: &str = "install.lock";
 pub const MANIFEST_PROTOCOL: u32 = 1;
-/// A pack with more entries than this is not a WorkDSH runtime.
+/// A pack with more entries than this is not a QuantDSH runtime.
 const MAX_ENTRIES: usize = 200_000;
 
 // ---------------------------------------------------------------------------
@@ -40,7 +40,7 @@ const MAX_ENTRIES: usize = 200_000;
 // ---------------------------------------------------------------------------
 
 /// The five paths the carrier dereferences before it can start a host process.
-/// Mirrors `officialLauncher`/`officialHostLauncher` in workdsh's local-runtime.ts,
+/// Mirrors `officialLauncher`/`officialHostLauncher` in quantdsh's local-runtime.ts,
 /// including the three component overrides the Electron carrier honours.
 pub struct RuntimeLayout {
     pub root: PathBuf,
@@ -105,18 +105,18 @@ fn target_label() -> String {
 
 impl RuntimeLayout {
     /// Resolve relative to a pack root, applying the same environment overrides
-    /// as workdsh (`WORKDSH_BUNDLED_PROFILE`, `WORKDSH_PRIMARY_RUNTIME`,
-    /// `WORKDSH_NODE_EXECUTABLE`). The overrides stay honoured so an administrator
+    /// as quantdsh (`QUANTDSH_BUNDLED_PROFILE`, `QUANTDSH_PRIMARY_RUNTIME`,
+    /// `QUANTDSH_NODE_EXECUTABLE`). The overrides stay honoured so an administrator
     /// can move a single component without replacing the whole tree.
     pub fn resolve(root: &Path) -> Self {
         // Same `\\?\` normalisation as `RuntimePaths::resolve`; this entry point is
         // also reached directly (archive import, install promotion, tests).
         let root = crate::local_runtime::simplify_verbatim(root);
         let primary_runtime =
-            env_dir("WORKDSH_PRIMARY_RUNTIME").unwrap_or_else(|| root.join("primary-runtime"));
-        let profile = env_dir("WORKDSH_BUNDLED_PROFILE")
+            env_dir("QUANTDSH_PRIMARY_RUNTIME").unwrap_or_else(|| root.join("primary-runtime"));
+        let profile = env_dir("QUANTDSH_BUNDLED_PROFILE")
             .unwrap_or_else(|| root.join("profiles").join(crate::paths::PROFILE_NAME));
-        let node = env_dir("WORKDSH_NODE_EXECUTABLE").unwrap_or_else(|| {
+        let node = env_dir("QUANTDSH_NODE_EXECUTABLE").unwrap_or_else(|| {
             primary_runtime
                 .join("dependencies")
                 .join("node")
@@ -243,9 +243,9 @@ impl RuntimeLayout {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Source {
-    /// `WORKDSH_RUNTIME_DIR` — an explicit administrator choice.
+    /// `QUANTDSH_RUNTIME_DIR` — an explicit administrator choice.
     Override,
-    /// `<resources>/workdsh-runtime`, shipped inside the installer.
+    /// `<resources>/quantdsh-runtime`, shipped inside the installer.
     Bundled,
     /// `<userData>/runtime/versions/<digest>`, produced by an offline import.
     Installed,
@@ -254,7 +254,7 @@ pub enum Source {
 impl Source {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Override => "WORKDSH_RUNTIME_DIR 指定的运行时",
+            Self::Override => "QUANTDSH_RUNTIME_DIR 指定的运行时",
             Self::Bundled => "安装包内置运行时",
             Self::Installed => "已导入的运行时",
         }
@@ -277,9 +277,9 @@ pub fn locate(resource_dir: &Path, user_data: &Path) -> RuntimePack {
     let install_root = user_data.join("runtime");
 
     // An explicit override must not silently fall through: if an administrator
-    // pointed WORKDSH_RUNTIME_DIR at something, starting from a different tree
+    // pointed QUANTDSH_RUNTIME_DIR at something, starting from a different tree
     // would hide the mistake.
-    if let Some(root) = env_dir("WORKDSH_RUNTIME_DIR") {
+    if let Some(root) = env_dir("QUANTDSH_RUNTIME_DIR") {
         let layout = RuntimeLayout::resolve(&root);
         let problems = layout.problems();
         return RuntimePack {
@@ -290,7 +290,7 @@ pub fn locate(resource_dir: &Path, user_data: &Path) -> RuntimePack {
         };
     }
 
-    let bundled = RuntimeLayout::resolve(&resource_dir.join("workdsh-runtime"));
+    let bundled = RuntimeLayout::resolve(&resource_dir.join("quantdsh-runtime"));
     let bundled_problems = bundled.problems();
     if bundled_problems.is_empty() {
         return RuntimePack {
@@ -347,7 +347,7 @@ pub fn is_hex_digest(value: &str) -> bool {
 /// Where the guide page sends users when no pack can be found. Deliberately not
 /// hard-coded: a wrong URL is worse than an honest "not configured".
 pub fn download_url() -> Option<String> {
-    env_dir("WORKDSH_RUNTIME_DOWNLOAD_URL")
+    env_dir("QUANTDSH_RUNTIME_DOWNLOAD_URL")
         .map(|path| path.display().to_string())
         .filter(|value| value.starts_with("https://") || value.starts_with("http://"))
 }
@@ -431,7 +431,7 @@ fn install_into(
     extract(archive, staging)?;
 
     let manifest_bytes = fs::read(staging.join(MANIFEST_NAME))
-        .map_err(|_| format!("离线包缺少 {MANIFEST_NAME}，可能不是 WorkDSH 运行时包"))?;
+        .map_err(|_| format!("离线包缺少 {MANIFEST_NAME}，可能不是 QuantDSH 运行时包"))?;
     let manifest: Manifest = serde_json::from_slice(&manifest_bytes)
         .map_err(|error| format!("{MANIFEST_NAME} 无法解析：{error}"))?;
     validate_manifest(&manifest)?;
@@ -695,7 +695,7 @@ mod tests {
 
     fn temp_dir(label: &str) -> PathBuf {
         let directory = std::env::temp_dir().join(format!(
-            "workdsh-runtime-pack-{label}-{}",
+            "quantdsh-runtime-pack-{label}-{}",
             uuid::Uuid::new_v4()
         ));
         fs::create_dir_all(&directory).expect("temp dir");
@@ -742,7 +742,7 @@ mod tests {
 
     #[test]
     fn rejects_traversal_and_absolute_paths() {
-        assert!(safe_relative(Path::new("profiles/workdsh/package.json")).is_some());
+        assert!(safe_relative(Path::new("profiles/quantdsh/package.json")).is_some());
         assert!(safe_relative(Path::new("./manifest.json")).is_some());
         assert!(safe_relative(Path::new("../escape")).is_none());
         assert!(safe_relative(Path::new("/etc/passwd")).is_none());
@@ -824,7 +824,7 @@ mod tests {
     fn located_pack_prefers_the_bundled_tree() {
         let resource = temp_dir("resource");
         let user_data = temp_dir("user-data");
-        complete_pack(&resource.join("workdsh-runtime"));
+        complete_pack(&resource.join("quantdsh-runtime"));
         let pack = locate(&resource, &user_data);
         assert!(pack.problems.is_empty(), "{:?}", pack.problems);
         assert_eq!(pack.source, Source::Bundled);

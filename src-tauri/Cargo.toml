@@ -1,5 +1,5 @@
 [package]
-name = "workdsh-desktop-tauri"
+name = "quantdsh-desktop-tauri"
 version = "3.0.0-alpha.3"
 description = "QuantDSH Tauri carrier for a pinned DeepSeek Harness runtime Profile"
 default-run = "QuantDSH"
@@ -7,7 +7,7 @@ edition = "2021"
 rust-version = "1.82"
 
 [lib]
-name = "workdsh_desktop"
+name = "quantdsh_desktop"
 path = "src/lib.rs"
 
 [[bin]]

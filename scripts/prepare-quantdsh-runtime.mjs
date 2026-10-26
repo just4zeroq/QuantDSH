@@ -6,22 +6,22 @@ import { dirname, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { DSH_VERSION, OFFICIAL_PNPM_VERSION } from './runtime-version.mjs'
-import { CATALOG_PACKAGES, ENTERPRISE_PACKAGES, PRODUCT_PACKAGES, RELEASE_PACKAGES } from './workdsh-package-boundary.mjs'
+import { CATALOG_PACKAGES, ENTERPRISE_PACKAGES, PRODUCT_PACKAGES, RELEASE_PACKAGES } from './quantdsh-package-boundary.mjs'
 import { composeProfilePatches, verifyDefaultComposition, verifyDefaultProfile, verifyInstalledDshVersions, verifyOfficialWebPackages, verifyPackageDshReferences, verifyProfileRelease, verifyReleaseArchives } from './verify-profile-release.mjs'
 import { runtimeArchitecture, runtimeArchitectureYaml } from './runtime-architecture.mjs'
 const architecture = runtimeArchitecture()
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const output = join(desktopRoot, 'build/workdsh-runtime')
-const profile = join(output, 'profiles/workdsh')
+const output = join(desktopRoot, 'build/quantdsh-runtime')
+const profile = join(output, 'profiles/quantdsh')
 const cache = join(output, 'package-cache')
-const release = resolve(process.env.WORKDSH_RELEASE_DIRECTORY ?? join(desktopRoot, 'build/workdsh-profile-release'))
+const release = resolve(process.env.QUANTDSH_RELEASE_DIRECTORY ?? join(desktopRoot, 'build/quantdsh-profile-release'))
 const manifestFile = join(release, 'release-manifest.json')
-if (!existsSync(manifestFile)) throw new Error('Pack built current WorkDSH sources with scripts/pack-workdsh-profile.mjs first, or select WORKDSH_RELEASE_DIRECTORY')
+if (!existsSync(manifestFile)) throw new Error('Pack built current QuantDSH sources with scripts/pack-quantdsh-profile.mjs first, or select QUANTDSH_RELEASE_DIRECTORY')
 const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'))
 verifyProfileRelease(manifest, DSH_VERSION, RELEASE_PACKAGES)
 verifyReleaseArchives(manifest, release)
 const marker = JSON.stringify({ harness: DSH_VERSION, pnpm: OFFICIAL_PNPM_VERSION, layout: 'workbench-platform-external-enterprise-v7', architecture, release: manifest })
-const markerPath = join(profile, '.workdsh-desktop-release.json')
+const markerPath = join(profile, '.quantdsh-desktop-release.json')
 const readJson = path => JSON.parse(readFileSync(path, 'utf8'))
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, { stdio: 'inherit', timeout: 1_200_000, ...options })
@@ -50,7 +50,7 @@ function verifyInstalled() {
   // from this one Profile project, without adding another package installation.
   const peers = { ...base.peerDependencies }
   for (const name of Object.keys(base.optionalDependencies ?? {})) peers[name] = readJson(join(profile, 'node_modules', name, 'package.json')).version
-  const anchor = { ...base, name: 'workdsh-desktop-installation', peerDependencies: peers }
+  const anchor = { ...base, name: 'quantdsh-desktop-installation', peerDependencies: peers }
   delete anchor.optionalDependencies
   writeFileSync(join(profile, 'profile-installation.json'), JSON.stringify(anchor, null, 2) + '\n')
   verifyInstalledDshVersions(profile, DSH_VERSION)
@@ -65,7 +65,7 @@ function verifyInstalled() {
   const lock = readFileSync(join(profile, 'pnpm-lock.yaml'), 'utf8')
   if (/file:(?:\/|[a-z]:)/iu.test(lock)) throw new Error('Runtime lock contains a build-machine path')
   const cli = join(profile, 'node_modules/@deepseek-ai/dsh/lib/bin.js')
-  const config = spawnSync(process.execPath, [cli, '--profile', 'workdsh', '--dump-config'], { env: { ...process.env, DSH_HOME: output }, encoding: 'utf8', timeout: 120_000, maxBuffer: 8 * 1024 * 1024 })
+  const config = spawnSync(process.execPath, [cli, '--profile', 'quantdsh', '--dump-config'], { env: { ...process.env, DSH_HOME: output }, encoding: 'utf8', timeout: 120_000, maxBuffer: 8 * 1024 * 1024 })
   if (config.error || config.status !== 0) throw new Error('Official runtime composition failed: ' + (config.error ?? config.stderr))
   verifyOfficialWebPackages(manifest, profile, config.stdout)
   verifyDefaultComposition(config.stdout)
@@ -102,12 +102,12 @@ if (!prepared) {
       const target = PRODUCT_PACKAGES.includes(item.name) ? dependencies : optionalDependencies
       target[item.name] = 'file:../../package-cache/' + item.filename
     }
-    const pkg = { name: 'workdsh-desktop-profile', private: true, type: 'module', packageManager: `pnpm@${OFFICIAL_PNPM_VERSION}`, dependencies, optionalDependencies,
+    const pkg = { name: 'quantdsh-desktop-profile', private: true, type: 'module', packageManager: `pnpm@${OFFICIAL_PNPM_VERSION}`, dependencies, optionalDependencies,
       dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', ...PRODUCT_PACKAGES, ...Object.keys(CATALOG_PACKAGES)] } } }
     writeFileSync(join(profile, 'package.json'), JSON.stringify(pkg, null, 2) + '\n')
     const overrides = Object.entries(manifest.runtimeOverrides ?? {}).map(([name, version]) => `  ${JSON.stringify(name)}: ${JSON.stringify(version)}`).join('\n')
     // `nodeLinker: hoisted` is the one deliberate layout difference from
-    // workdsh, and it exists for the Tauri packager: electron-builder ships
+    // quantdsh, and it exists for the Tauri packager: electron-builder ships
     // `extraResources` through 7z, which accepts paths beyond MAX_PATH, while
     // Tauri's NSIS bundler emits one `File "…"` line per resource file and
     // makensis cannot open a source path longer than 260 characters. pnpm's
@@ -151,12 +151,12 @@ if (!prepared) {
 cpSync(join(profile, 'package.json'), join(output, 'profile-package.json'))
 // The Electron carrier packaged this directory through electron-builder's
 // `extraResources.filter`, whose only exclusion is
-// `!profiles/workdsh/node_modules/**/*.pdb`. Tauri's `bundle.resources` map has
+// `!profiles/quantdsh/node_modules/**/*.pdb`. Tauri's `bundle.resources` map has
 // no filter support and copies the whole tree, so the same exclusion is applied
 // to the shared build output here — once, before any packager reads it. Native
 // add-ins ship linker symbols next to their `.node` binaries; without this they
 // would inflate the installer for no runtime benefit.
-const prunedSymbols = pruneDebugSymbols(join(output, 'profiles/workdsh/node_modules'))
+const prunedSymbols = pruneDebugSymbols(join(output, 'profiles/quantdsh/node_modules'))
 if (prunedSymbols.count) {
   console.log(`Removed ${prunedSymbols.count} debug symbol file(s), ${(prunedSymbols.bytes / 1024 / 1024).toFixed(1)} MiB, to match the packaged resource set`)
 }

@@ -23,7 +23,7 @@ pub fn cached_package_manager(home: &Path, pnpm: &Path) -> Result<PathBuf, Strin
     } else {
         &["--config.manage-package-manager-versions=false", "--config.package-manager-strict=false"]
     };
-    let runner = home.join(".workdsh-package-manager.mjs");
+    let runner = home.join(".quantdsh-package-manager.mjs");
     let pnpm_literal = js_string(pnpm);
     let fixed_literal = js_string_array(fixed_manager);
     let script = format!(

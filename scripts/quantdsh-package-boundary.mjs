@@ -1,4 +1,4 @@
-// Review this inventory when the WorkDSH release adds or removes a package.
+// Review this inventory when the QuantDSH release adds or removes a package.
 // Only product packages are selected or exposed by the default personal Profile.
 export const PRODUCT_PACKAGES = Object.freeze([
   'workdsh-plugin-connectors',

@@ -1,5 +1,5 @@
 //! Official command execution with bounded diagnostics, mirroring
-//! workdsh apps/desktop/src/official-command.ts.
+//! the upstream desktop's official-command.ts.
 
 use std::collections::HashMap;
 use std::path::PathBuf;

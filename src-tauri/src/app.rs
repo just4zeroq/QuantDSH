@@ -1,7 +1,7 @@
-//! Main-process state machine, mirroring workdsh apps/desktop/src/workdsh-main.ts.
+//! Main-process state machine, mirroring the upstream desktop main process.
 //!
 //! Every Electron behavior is ported one-to-one: the carrier surfaces (entry, enterprise
-//! login, loading) are served through a registered `workdsh://` protocol, the official
+//! login, loading) are served through a registered `quantdsh://` protocol, the official
 //! Host lifecycle (Profile materialization, port reservation, readiness detection,
 //! owned-process cleanup) is reproduced exactly, and the enterprise admission, menu,
 //! quit choreography and window rules follow the original control flow.
@@ -74,7 +74,7 @@ pub struct RuntimeProcess {
     pub generation: u64,
 }
 
-/// workdsh `enterprise`: `{ login, root, home, deviceId, authority?, authFile? }`.
+/// quantdsh `enterprise`: `{ login, root, home, deviceId, authority?, authFile? }`.
 /// `id` replaces JavaScript object identity for `enterprise !== session`.
 pub struct EnterpriseSession {
     pub id: u64,
@@ -139,7 +139,7 @@ fn ready_pattern() -> &'static Regex {
     PATTERN.get_or_init(|| Regex::new(READY_PATTERN).unwrap())
 }
 
-/// Percent-encode a message for the `workdsh://localhost/loading` query.
+/// Percent-encode a message for the `quantdsh://localhost/loading` query.
 fn percent_encode(value: &str) -> String {
     let mut result = String::new();
     for byte in value.as_bytes() {
@@ -190,12 +190,12 @@ fn percent_decode(value: &str) -> String {
 
 /// Carrier surface URL. WebView2 (Windows) cannot navigate to a non-standard scheme, so
 /// there the custom protocol is addressed through wry's workaround host
-/// `http://workdsh.localhost/...`, which the registered protocol serves identically.
+/// `http://quantdsh.localhost/...`, which the registered protocol serves identically.
 pub fn carrier_url(host: &str, query: Option<&str>) -> String {
     #[cfg(windows)]
-    let base = format!("http://workdsh.localhost/{host}");
+    let base = format!("http://quantdsh.localhost/{host}");
     #[cfg(not(windows))]
-    let base = format!("workdsh://localhost/{host}");
+    let base = format!("quantdsh://localhost/{host}");
     match query {
         Some(query) => format!("{base}?{query}"),
         None => base,
@@ -219,16 +219,16 @@ pub fn loading_url(message: &str) -> String {
     carrier_url("loading", Some(&format!("message={}", percent_encode(message))))
 }
 
-/// Normalize a navigation target to the `workdsh://...` form the Electron carrier
+/// Normalize a navigation target to the `quantdsh://...` form the Electron carrier
 /// compares against. On Windows a user gesture such as `window.location.assign`
 /// arrives verbatim, while carrier loads arrive through the workaround host.
-fn normalized_workdsh_url(url: &tauri::Url) -> Option<tauri::Url> {
-    if url.scheme() == "workdsh" {
+fn normalized_quantdsh_url(url: &tauri::Url) -> Option<tauri::Url> {
+    if url.scheme() == "quantdsh" {
         return Some(url.clone());
     }
     if matches!(url.scheme(), "http" | "https") {
-        if url.host_str() == Some("workdsh.localhost") {
-            let mut normalized = format!("workdsh://localhost{}", url.path());
+        if url.host_str() == Some("quantdsh.localhost") {
+            let mut normalized = format!("quantdsh://localhost{}", url.path());
             if let Some(query) = url.query() {
                 normalized.push('?');
                 normalized.push_str(query);
@@ -241,16 +241,16 @@ fn normalized_workdsh_url(url: &tauri::Url) -> Option<tauri::Url> {
 
 /// Carrier surfaces are the only navigation targets admitted inside a carrier window.
 fn carrier_navigation_allowed(url: &tauri::Url) -> bool {
-    if url.scheme() == "workdsh" {
-        // Only the carrier surfaces themselves; `workdsh://personal` and friends are
+    if url.scheme() == "quantdsh" {
+        // Only the carrier surfaces themselves; `quantdsh://personal` and friends are
         // commands, dispatched by the caller and never loaded as documents.
         return url.host_str() == Some("localhost");
     }
-    matches!(url.scheme(), "http" | "https") && url.host_str() == Some("workdsh.localhost")
+    matches!(url.scheme(), "http" | "https") && url.host_str() == Some("quantdsh.localhost")
 }
 
-/// Electron compares the literal `workdsh://entry`; the Tauri carrier also addresses
-/// its surfaces through `workdsh://localhost/<surface>` (and the WebView2 workaround
+/// Electron compares the literal `quantdsh://entry`; the Tauri carrier also addresses
+/// its surfaces through `quantdsh://localhost/<surface>` (and the WebView2 workaround
 /// host), so both spellings must land on the same entry flow.
 fn is_entry_navigation(command: &tauri::Url) -> bool {
     match command.host_str() {
@@ -308,7 +308,7 @@ fn write_json_private(path: &Path, value: &Value) -> Result<(), String> {
 
 impl<R: Runtime> Carrier<R> {
     pub fn new(app: AppHandle<R>, paths: RuntimePaths) -> Self {
-        let portal = std::env::var_os("WORKDSH_ENTERPRISE_PORTAL")
+        let portal = std::env::var_os("QUANTDSH_ENTERPRISE_PORTAL")
             .map(|value| value.to_string_lossy().to_string())
             .unwrap_or_default();
         Self {
@@ -368,7 +368,7 @@ impl<R: Runtime> Carrier<R> {
             .ok_or_else(|| "Bundled DSH version is missing".to_string())
     }
 
-    /// workdsh `enterprisePluginAvailable`.
+    /// quantdsh `enterprisePluginAvailable`.
     pub fn enterprise_plugin_available(&self) -> bool {
         match self.bundled_dsh_version() {
             Ok(version) => installed_enterprise_plugins(&self.profile_directory(), &version)
@@ -392,7 +392,7 @@ impl<R: Runtime> Carrier<R> {
 
     // ------------------------------------------------------------- dialogs
 
-    /// workdsh `dialog.showErrorBox(title, content)`: non-blocking, modal.
+    /// quantdsh `dialog.showErrorBox(title, content)`: non-blocking, modal.
     pub fn error_box(&self, title: &str, message: &str) {
         let app = self.app.clone();
         let title = title.to_string();
@@ -410,7 +410,7 @@ impl<R: Runtime> Carrier<R> {
 
     // -------------------------------------------------------------- windows
 
-    /// workdsh `openWindow(url, connection, carrier)` — main thread only.
+    /// quantdsh `openWindow(url, connection, carrier)` — main thread only.
     pub fn open_window(self: &Arc<Self>, url: &str, connection: DesktopConnection, carrier: bool) {
         self.open_window_inner(url, connection, carrier, false)
     }
@@ -430,7 +430,7 @@ impl<R: Runtime> Carrier<R> {
             .unwrap_or_else(|error| error.into_inner())
             .clone();
         let label = format!(
-            "workdsh-window-{}",
+            "quantdsh-window-{}",
             self.next_window_id.fetch_add(1, Ordering::SeqCst)
         );
         let parsed: tauri::Url = url.parse().expect("window url");
@@ -475,7 +475,7 @@ impl<R: Runtime> Carrier<R> {
                 // WKWebView identifies data stores by UUID; derive a stable one from
                 // the *whole* partition name. Taking the first 16 bytes would give
                 // every enterprise account the same identifier, because the name
-                // starts with the constant `workdsh-enterprise-`.
+                // starts with the constant `quantdsh-enterprise-`.
                 let digest = sha2::Sha256::digest(partition.as_bytes());
                 let mut identifier = [0u8; 16];
                 identifier.copy_from_slice(&digest[..16]);
@@ -524,12 +524,12 @@ impl<R: Runtime> Carrier<R> {
         }
         if carrier {
             // Electron `connectEntryNavigation`: every carrier navigation is prevented
-            // and the `workdsh:` command is dispatched instead. The carrier surfaces
+            // and the `quantdsh:` command is dispatched instead. The carrier surfaces
             // themselves stay loadable, including the WebView2 workaround host.
             let this = Arc::clone(self);
             let navigation_label = label.clone();
             builder = builder.on_navigation(move |url| {
-                if url.scheme() == "workdsh" && url.host_str() != Some("localhost") {
+                if url.scheme() == "quantdsh" && url.host_str() != Some("localhost") {
                     let this = Arc::clone(&this);
                     let label = navigation_label.clone();
                     let target = url.as_str().to_string();
@@ -550,7 +550,7 @@ impl<R: Runtime> Carrier<R> {
                 .unwrap_or_else(|error| error.into_inner())
                 .clone();
             builder = builder.on_navigation(move |url| {
-                if let Some(command) = normalized_workdsh_url(url) {
+                if let Some(command) = normalized_quantdsh_url(url) {
                     if is_entry_navigation(&command)
                         && this.is_current_window(&navigation_label)
                         && !this.switching.load(Ordering::SeqCst)
@@ -591,7 +591,7 @@ impl<R: Runtime> Carrier<R> {
                 if loaded.swap(true, Ordering::SeqCst) {
                     return;
                 }
-                eprintln!("[workdsh] window {load_label} ready at {url}", url = payload.url());
+                eprintln!("[quantdsh] window {load_label} ready at {url}", url = payload.url());
                 let _ = window.show();
                 if let Some(previous_label) = &previous {
                     if let Some(previous_window) = this.app.get_webview_window(previous_label) {
@@ -617,7 +617,7 @@ impl<R: Runtime> Carrier<R> {
             match built {
                 Ok(window) => window,
                 Err(error) => {
-                    eprintln!("[workdsh] window build failed: {error}");
+                    eprintln!("[quantdsh] window build failed: {error}");
                     self.error_box("无法打开工作区", &error);
                     return;
                 }
@@ -675,7 +675,7 @@ impl<R: Runtime> Carrier<R> {
                 if loaded.load(Ordering::SeqCst) {
                     return;
                 }
-                eprintln!("[workdsh] window {rollback_label} never loaded; rolling back");
+                eprintln!("[quantdsh] window {rollback_label} never loaded; rolling back");
                 let handler = Arc::clone(&this);
                 let _ = this.app.run_on_main_thread(move || {
                     handler.roll_back_failed_window(&rollback_label, rollback);
@@ -769,7 +769,7 @@ impl<R: Runtime> Carrier<R> {
 
     // ------------------------------------------------------------ environment
 
-    /// workdsh `runtimeEnvironment(home)`.
+    /// quantdsh `runtimeEnvironment(home)`.
     pub fn runtime_environment(&self, home: &Path) -> HashMap<String, String> {
         let parent: HashMap<String, String> = std::env::vars().collect();
         let mut env = {
@@ -803,14 +803,14 @@ impl<R: Runtime> Carrier<R> {
                 executable.display().to_string(),
             );
         }
-        // The provider treats WORKDSH_ELECTRON_APP as the application path it spawns;
+        // The provider treats QUANTDSH_ELECTRON_APP as the application path it spawns;
         // the Tauri executable is the application, so the override must never be set.
-        env.remove("WORKDSH_ELECTRON_APP");
+        env.remove("QUANTDSH_ELECTRON_APP");
         env.remove("ELECTRON_RUN_AS_NODE");
         env
     }
 
-    /// workdsh `officialCommand(home, args)`.
+    /// quantdsh `officialCommand(home, args)`.
     pub async fn official_command(
         self: &Arc<Self>,
         home: &Path,
@@ -840,14 +840,14 @@ impl<R: Runtime> Carrier<R> {
         run_official_command(options).await
     }
 
-    /// workdsh `prepareProfile(home)`.
+    /// quantdsh `prepareProfile(home)`.
     pub async fn prepare_profile(self: &Arc<Self>, home: &Path) -> Result<(PathBuf, bool), String> {
         let profile_directory = home.join("profiles").join(PROFILE_NAME);
         let existing_home = [
             profile_directory.join("package.json"),
             profile_directory.join("cordis.yml"),
             home.join("cordis.yml"),
-            home.join(".workdsh-host.mjs"),
+            home.join(".quantdsh-host.mjs"),
         ]
         .iter()
         .any(|path| path.exists());
@@ -890,7 +890,7 @@ impl<R: Runtime> Carrier<R> {
         Ok((materialized.profile, existing_home))
     }
 
-    /// workdsh `rememberCommandSpace(home)`.
+    /// quantdsh `rememberCommandSpace(home)`.
     pub fn remember_command_space(&self, home: Option<&Path>) {
         let active = home.map(|home| {
             let enterprise = self.enterprise.lock().unwrap_or_else(|error| error.into_inner());
@@ -922,7 +922,7 @@ impl<R: Runtime> Carrier<R> {
         let _ = write_json_private(&self.paths.command_context_file(), &payload);
     }
 
-    /// workdsh `startRuntime(home, connection, patches, existingHome)`.
+    /// quantdsh `startRuntime(home, connection, patches, existingHome)`.
     pub async fn start_runtime(
         self: &Arc<Self>,
         home: &Path,
@@ -1161,7 +1161,7 @@ impl<R: Runtime> Carrier<R> {
                                 code,
                                 false,
                             );
-                            // workdsh `dialog.showErrorBox('本机运行已停止', failureDetail(code))`;
+                            // quantdsh `dialog.showErrorBox('本机运行已停止', failureDetail(code))`;
                             // `failureDetail` has already written `logs/runtime-failure.log`.
                             this.error_box("本机运行已停止", &detail);
                             this.return_to_entry_spawned();
@@ -1178,7 +1178,7 @@ impl<R: Runtime> Carrier<R> {
                             code,
                             true,
                         );
-                        // workdsh reports this one without returning to the entry
+                        // quantdsh reports this one without returning to the entry
                         // surface: the process tree is still there.
                         this.error_box("本机运行失败，进程清理未确认", &detail);
                     }
@@ -1201,7 +1201,7 @@ impl<R: Runtime> Carrier<R> {
         Ok(())
     }
 
-    /// workdsh `failureDetail` closure.
+    /// quantdsh `failureDetail` closure.
     fn runtime_failure_detail(
         &self,
         ready: bool,
@@ -1234,7 +1234,7 @@ impl<R: Runtime> Carrier<R> {
         detail
     }
 
-    /// workdsh `stopRuntime`.
+    /// quantdsh `stopRuntime`.
     pub fn stop_runtime(&self) {
         self.quitting.store(true, Ordering::SeqCst);
         let pid = self
@@ -1252,7 +1252,7 @@ impl<R: Runtime> Carrier<R> {
         self.runtime_starting.store(false, Ordering::SeqCst);
     }
 
-    /// workdsh `leaveWorkspace`.
+    /// quantdsh `leaveWorkspace`.
     pub async fn leave_workspace(&self) -> Result<(), String> {
         {
             let mut cancel = self.verify_cancel.lock().unwrap_or_else(|error| error.into_inner());
@@ -1359,7 +1359,7 @@ impl<R: Runtime> Carrier<R> {
         });
     }
 
-    /// workdsh `returnToEntry`.
+    /// quantdsh `returnToEntry`.
     pub async fn return_to_entry(self: &Arc<Self>) {
         if self.quitting.load(Ordering::SeqCst) {
             return;
@@ -1383,7 +1383,7 @@ impl<R: Runtime> Carrier<R> {
         });
     }
 
-    /// workdsh `endSwitch`.
+    /// quantdsh `endSwitch`.
     fn end_switch(self: &Arc<Self>) {
         self.switching.store(false, Ordering::SeqCst);
         if self.quit_requested.load(Ordering::SeqCst) {
@@ -1399,7 +1399,7 @@ impl<R: Runtime> Carrier<R> {
         self.paths.enterprise_backend_file()
     }
 
-    /// workdsh `rememberBackend`.
+    /// quantdsh `rememberBackend`.
     pub fn remember_backend(&self, backend: &str) {
         if self
             .managed_backend
@@ -1418,7 +1418,7 @@ impl<R: Runtime> Carrier<R> {
 
     // ------------------------------------------------------------ entry flow
 
-    /// workdsh `showConnectionEntry`.
+    /// quantdsh `showConnectionEntry`.
     pub fn show_connection_entry(self: &Arc<Self>) {
         self.open_window_dispatch(
             entry_url(),
@@ -1433,7 +1433,7 @@ impl<R: Runtime> Carrier<R> {
         self.open_window_dispatch(runtime_url(), DesktopConnection::Personal, true);
     }
 
-    /// workdsh `connectEntryNavigation` will-navigate body.
+    /// quantdsh `connectEntryNavigation` will-navigate body.
     pub async fn handle_navigation(self: &Arc<Self>, label: &str, target: &str) {
         if self.switching.load(Ordering::SeqCst) {
             return;
@@ -1454,7 +1454,7 @@ impl<R: Runtime> Carrier<R> {
 
     async fn navigate_command(self: &Arc<Self>, target: &str) -> Result<(), String> {
         let command: tauri::Url = target.parse().map_err(|_| "无效的使用方式指令".to_string())?;
-        if command.scheme() != "workdsh" {
+        if command.scheme() != "quantdsh" {
             return Ok(());
         }
         match command.host_str() {
@@ -1526,7 +1526,7 @@ impl<R: Runtime> Carrier<R> {
 
     // -------------------------------------------------------- enterprise flow
 
-    /// workdsh `activateEnterprise(existingHome)`.
+    /// quantdsh `activateEnterprise(existingHome)`.
     pub async fn activate_enterprise(
         self: &Arc<Self>,
         session_id: u64,
@@ -1709,7 +1709,7 @@ impl<R: Runtime> Carrier<R> {
         Ok(())
     }
 
-    /// workdsh `installLoginHandlers` body for `workdsh:enterprise-login`.
+    /// quantdsh `installLoginHandlers` body for `quantdsh:enterprise-login`.
     pub async fn enterprise_login(self: &Arc<Self>, label: &str, input: &Value) -> Value {
         let current = self
             .window
@@ -1799,26 +1799,26 @@ impl<R: Runtime> Carrier<R> {
 
     // ------------------------------------------------------------------ menu
 
-    /// workdsh `installConnectionMenu`.
+    /// quantdsh `installConnectionMenu`.
     pub fn install_connection_menu(&self) {
         let app = &self.app;
-        let workspace = MenuItem::with_id(app, "workdsh-return", "切换使用方式／退出企业", true, None::<&str>)
+        let workspace = MenuItem::with_id(app, "quantdsh-return", "切换使用方式／退出企业", true, None::<&str>)
             .expect("workspace menu item");
         let workspace_menu: Submenu<R> = Submenu::new(app, "工作区", true)
             .expect("workspace submenu");
         let _ = workspace_menu.append(&workspace);
-        let tools_item = MenuItem::with_id(app, "workdsh-command", "终端命令 dsh（可选）…", true, None::<&str>)
+        let tools_item = MenuItem::with_id(app, "quantdsh-command", "终端命令 dsh（可选）…", true, None::<&str>)
             .expect("tools menu item");
         let tools_menu: Submenu<R> =
             Submenu::new(app, "工具", true).expect("tools submenu");
         let _ = tools_menu.append(&tools_item);
         // Electron `viewMenu` role: reload, forceReload, toggleDevTools, separator,
         // resetZoom, zoomIn, zoomOut, separator, togglefullscreen.
-        let reload_item = MenuItem::with_id(app, "workdsh-reload", "重新加载", true, Some("CmdOrCtrl+R"))
+        let reload_item = MenuItem::with_id(app, "quantdsh-reload", "重新加载", true, Some("CmdOrCtrl+R"))
             .expect("reload menu item");
         let force_reload_item = MenuItem::with_id(
             app,
-            "workdsh-force-reload",
+            "quantdsh-force-reload",
             "强制重新加载",
             true,
             Some("CmdOrCtrl+Shift+R"),
@@ -1826,17 +1826,17 @@ impl<R: Runtime> Carrier<R> {
         .expect("force reload menu item");
         let devtools_item = MenuItem::with_id(
             app,
-            "workdsh-devtools",
+            "quantdsh-devtools",
             "开发者工具",
             true,
             Some("CmdOrCtrl+Shift+I"),
         )
         .expect("devtools menu item");
-        let reset_zoom_item = MenuItem::with_id(app, "workdsh-zoom-reset", "实际大小", true, Some("CmdOrCtrl+0"))
+        let reset_zoom_item = MenuItem::with_id(app, "quantdsh-zoom-reset", "实际大小", true, Some("CmdOrCtrl+0"))
             .expect("reset zoom menu item");
-        let zoom_in_item = MenuItem::with_id(app, "workdsh-zoom-in", "放大", true, Some("CmdOrCtrl+="))
+        let zoom_in_item = MenuItem::with_id(app, "quantdsh-zoom-in", "放大", true, Some("CmdOrCtrl+="))
             .expect("zoom in menu item");
-        let zoom_out_item = MenuItem::with_id(app, "workdsh-zoom-out", "缩小", true, Some("CmdOrCtrl+-"))
+        let zoom_out_item = MenuItem::with_id(app, "quantdsh-zoom-out", "缩小", true, Some("CmdOrCtrl+-"))
             .expect("zoom out menu item");
         let view_menu: Submenu<R> =
             Submenu::new(app, "视图", true).expect("view submenu");
@@ -1890,10 +1890,10 @@ impl<R: Runtime> Carrier<R> {
     /// Menu event dispatch for the carrier menu items.
     pub fn on_menu_event(self: &Arc<Self>, app: &AppHandle<R>, event: &MenuEvent) {
         match event.id().as_ref() {
-            "workdsh-return" => {
+            "quantdsh-return" => {
                 self.return_to_entry_spawned();
             }
-            "workdsh-command" => {
+            "quantdsh-command" => {
                 let scope = {
                     let enterprise = self.enterprise.lock().unwrap_or_else(|error| error.into_inner());
                     match enterprise.as_ref() {
@@ -1907,23 +1907,23 @@ impl<R: Runtime> Carrier<R> {
                 };
                 manage_command(app, &self.paths.runtime_root, &scope);
             }
-            "workdsh-reload" | "workdsh-force-reload" => {
+            "quantdsh-reload" | "quantdsh-force-reload" => {
                 // WebView2 exposes no cache-bypassing reload; both entries perform the
                 // same reload, which is what the loopback runtime serves anyway.
                 if let Some(window) = self.current_window() {
                     let _ = window.reload();
                 }
             }
-            "workdsh-zoom-reset" => self.zoom_to(1.0),
-            "workdsh-zoom-in" => {
+            "quantdsh-zoom-reset" => self.zoom_to(1.0),
+            "quantdsh-zoom-in" => {
                 let current = *self.zoom.lock().unwrap_or_else(|error| error.into_inner());
                 self.zoom_to(current * ZOOM_STEP);
             }
-            "workdsh-zoom-out" => {
+            "quantdsh-zoom-out" => {
                 let current = *self.zoom.lock().unwrap_or_else(|error| error.into_inner());
                 self.zoom_to(current / ZOOM_STEP);
             }
-            "workdsh-devtools" => {
+            "quantdsh-devtools" => {
                 if let Some(window) = self.current_window() {
                     if window.is_devtools_open() {
                         window.close_devtools();
@@ -1956,7 +1956,7 @@ impl<R: Runtime> Carrier<R> {
 
     // ---------------------------------------------------------------- startup
 
-    /// workdsh `app.whenReady()` body (minus the menu and handlers, which are
+    /// quantdsh `app.whenReady()` body (minus the menu and handlers, which are
     /// installed by the Tauri builder).
     pub async fn start(self: &Arc<Self>) {
         let deployment_file = self.paths.deployment_config_file();
@@ -2042,8 +2042,8 @@ fn set_window_zoom<R: Runtime>(window: &WebviewWindow<R>, factor: f64) {
     }
 }
 
-/// The registered `workdsh://` protocol: carrier surfaces only.
-pub fn workdsh_protocol_handler<R: Runtime>(
+/// The registered `quantdsh://` protocol: carrier surfaces only.
+pub fn quantdsh_protocol_handler<R: Runtime>(
     context: tauri::UriSchemeContext<'_, R>,
     request: http::Request<Vec<u8>>,
 ) -> http::Response<Vec<u8>> {
@@ -2150,10 +2150,10 @@ pub fn run() {
         let result = tauri::Builder::default()
             .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_opener::init())
-            .register_uri_scheme_protocol("workdsh", workdsh_protocol_handler::<tauri::Wry>)
+            .register_uri_scheme_protocol("quantdsh", quantdsh_protocol_handler::<tauri::Wry>)
             .invoke_handler(tauri::generate_handler![
-                crate::app::workdsh_navigate,
-                crate::app::workdsh_enterprise_login
+                crate::app::quantdsh_navigate,
+                crate::app::quantdsh_enterprise_login
             ])
             .setup(move |app| {
                 start_browser_worker(app, &request)?;
@@ -2173,7 +2173,7 @@ pub fn run() {
             // The Windows installer asks a running instance to quit through this
             // channel (`QuantDSH.exe --dsh-installer-quit`), so an upgrade can
             // replace files only after an orderly shutdown; see
-            // `src-tauri/installer-hooks.nsh` and workdsh's `build/installer.nsh`.
+            // `src-tauri/installer-hooks.nsh` and quantdsh's `build/installer.nsh`.
             if args.iter().any(|argument| argument == "--dsh-installer-quit") {
                 if let Some(carrier) = app.try_state::<Arc<Carrier<tauri::Wry>>>() {
                     let carrier = carrier.inner().clone();
@@ -2203,18 +2203,18 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .register_uri_scheme_protocol("workdsh", workdsh_protocol_handler::<tauri::Wry>)
+        .register_uri_scheme_protocol("quantdsh", quantdsh_protocol_handler::<tauri::Wry>)
         .invoke_handler(tauri::generate_handler![
-            crate::app::workdsh_navigate,
-            crate::app::workdsh_enterprise_login,
-            crate::app::workdsh_runtime_import,
-            crate::app::workdsh_runtime_open_download,
-            crate::app::workdsh_runtime_restart,
-            crate::app::workdsh_runtime_exit
+            crate::app::quantdsh_navigate,
+            crate::app::quantdsh_enterprise_login,
+            crate::app::quantdsh_runtime_import,
+            crate::app::quantdsh_runtime_open_download,
+            crate::app::quantdsh_runtime_restart,
+            crate::app::quantdsh_runtime_exit
         ])
         .setup(|app| {
             // Electron parity: the bundle declares `LSUIElement` (agent) so a
-            // spawned `--workdsh-browser-worker-*` child — the same executable —
+            // spawned `--quantdsh-browser-worker-*` child — the same executable —
             // cannot flash a Dock icon before JavaScript runs; the primary
             // process then calls `app.setActivationPolicy('regular')`. Tauri has
             // no extendInfo, so `scripts/patch-macos-info-plist.mjs` writes
@@ -2309,9 +2309,9 @@ pub fn run() {
         });
 }
 
-/// The `workdsh_navigate` command: user-gesture carrier navigation.
+/// The `quantdsh_navigate` command: user-gesture carrier navigation.
 #[tauri::command]
-async fn workdsh_navigate(
+async fn quantdsh_navigate(
     webview: WebviewWindow<tauri::Wry>,
     app: AppHandle<tauri::Wry>,
     url: String,
@@ -2329,9 +2329,9 @@ async fn workdsh_navigate(
     Ok(json!({}))
 }
 
-/// The `workdsh_enterprise_login` command: enterprise admission from the login page.
+/// The `quantdsh_enterprise_login` command: enterprise admission from the login page.
 #[tauri::command]
-async fn workdsh_enterprise_login(
+async fn quantdsh_enterprise_login(
     webview: WebviewWindow<tauri::Wry>,
     app: AppHandle<tauri::Wry>,
     input: Value,
@@ -2350,7 +2350,7 @@ async fn workdsh_enterprise_login(
 /// dialog on the UI thread deadlocks, and hashing hundreds of megabytes would
 /// freeze the window. Nothing is written outside `<userData>/runtime`.
 #[tauri::command]
-async fn workdsh_runtime_import(app: AppHandle<tauri::Wry>) -> Result<Value, String> {
+async fn quantdsh_runtime_import(app: AppHandle<tauri::Wry>) -> Result<Value, String> {
     let install_root = app
         .try_state::<Arc<Carrier<tauri::Wry>>>()
         .ok_or_else(|| "carrier unavailable".to_string())?
@@ -2393,7 +2393,7 @@ async fn workdsh_runtime_import(app: AppHandle<tauri::Wry>) -> Result<Value, Str
 }
 
 #[tauri::command]
-async fn workdsh_runtime_open_download(app: AppHandle<tauri::Wry>) -> Result<Value, String> {
+async fn quantdsh_runtime_open_download(app: AppHandle<tauri::Wry>) -> Result<Value, String> {
     let Some(url) = crate::runtime_pack::download_url() else {
         return Ok(json!({
             "error": "本安装包未配置运行时下载地址，请联系管理员获取离线包。"
@@ -2408,7 +2408,7 @@ async fn workdsh_runtime_open_download(app: AppHandle<tauri::Wry>) -> Result<Val
 /// Re-exec so the newly promoted pack is resolved from scratch. Hot-swapping the
 /// runtime under a live process tree is exactly the half-state this design avoids.
 #[tauri::command]
-async fn workdsh_runtime_restart(app: AppHandle<tauri::Wry>) -> Result<Value, String> {
+async fn quantdsh_runtime_restart(app: AppHandle<tauri::Wry>) -> Result<Value, String> {
     if let Some(carrier) = app.try_state::<Arc<Carrier<tauri::Wry>>>() {
         carrier.inner().stop_runtime();
     }
@@ -2417,7 +2417,7 @@ async fn workdsh_runtime_restart(app: AppHandle<tauri::Wry>) -> Result<Value, St
 }
 
 #[tauri::command]
-async fn workdsh_runtime_exit(app: AppHandle<tauri::Wry>) -> Result<Value, String> {
+async fn quantdsh_runtime_exit(app: AppHandle<tauri::Wry>) -> Result<Value, String> {
     if let Some(carrier) = app.try_state::<Arc<Carrier<tauri::Wry>>>() {
         carrier.inner().stop_runtime();
     }
@@ -2475,40 +2475,40 @@ mod tests {
 
     #[test]
     fn normalizes_the_windows_workaround_form() {
-        let url: tauri::Url = "http://workdsh.localhost/loading?message=x".parse().unwrap();
-        let normalized = normalized_workdsh_url(&url).expect("normalized");
-        assert_eq!(normalized.scheme(), "workdsh");
+        let url: tauri::Url = "http://quantdsh.localhost/loading?message=x".parse().unwrap();
+        let normalized = normalized_quantdsh_url(&url).expect("normalized");
+        assert_eq!(normalized.scheme(), "quantdsh");
         assert_eq!(normalized.path(), "/loading");
         let url: tauri::Url = "https://example.com/".parse().unwrap();
-        assert!(normalized_workdsh_url(&url).is_none());
+        assert!(normalized_quantdsh_url(&url).is_none());
     }
 
     #[test]
     fn carrier_navigation_admits_only_carrier_targets() {
-        let entry: tauri::Url = "workdsh://localhost/entry".parse().unwrap();
+        let entry: tauri::Url = "quantdsh://localhost/entry".parse().unwrap();
         assert!(carrier_navigation_allowed(&entry));
-        let workaround: tauri::Url = "http://workdsh.localhost/loading?message=x".parse().unwrap();
+        let workaround: tauri::Url = "http://quantdsh.localhost/loading?message=x".parse().unwrap();
         assert!(carrier_navigation_allowed(&workaround));
         let external: tauri::Url = "https://example.com/".parse().unwrap();
         assert!(!carrier_navigation_allowed(&external));
         // Command targets are dispatched, never loaded as documents.
-        let command: tauri::Url = "workdsh://personal".parse().unwrap();
+        let command: tauri::Url = "quantdsh://personal".parse().unwrap();
         assert!(!carrier_navigation_allowed(&command));
     }
 
     #[test]
     fn entry_navigation_accepts_both_spellings() {
-        for target in ["workdsh://entry", "workdsh://entry/", "workdsh://localhost/entry"] {
+        for target in ["quantdsh://entry", "quantdsh://entry/", "quantdsh://localhost/entry"] {
             let url: tauri::Url = target.parse().unwrap();
             assert!(is_entry_navigation(&url), "{target}");
         }
-        for target in ["workdsh://personal", "workdsh://localhost/login", "https://example.com/entry"] {
+        for target in ["quantdsh://personal", "quantdsh://localhost/login", "https://example.com/entry"] {
             let url: tauri::Url = target.parse().unwrap();
             assert!(!is_entry_navigation(&url), "{target}");
         }
         // The Windows workaround form normalizes to the carrier spelling first.
-        let workaround: tauri::Url = "http://workdsh.localhost/entry".parse().unwrap();
-        let normalized = normalized_workdsh_url(&workaround).expect("normalized");
+        let workaround: tauri::Url = "http://quantdsh.localhost/entry".parse().unwrap();
+        let normalized = normalized_quantdsh_url(&workaround).expect("normalized");
         assert!(is_entry_navigation(&normalized));
     }
 }

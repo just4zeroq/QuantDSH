@@ -7,14 +7,14 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DSH_VERSION } from './runtime-version.mjs'
-import { PRODUCT_PACKAGES, RELEASE_PACKAGES, PACKAGE_DIRECTORIES } from './workdsh-package-boundary.mjs'
+import { PRODUCT_PACKAGES, RELEASE_PACKAGES, PACKAGE_DIRECTORIES } from './quantdsh-package-boundary.mjs'
 import { requiredRuntimeDependencies, verifyBuiltPackageExports, verifyPackageDshReferences, verifyProfileRelease } from './verify-profile-release.mjs'
 const source = process.argv[2] && resolve(process.argv[2])
-const output = resolve(process.argv[3] ?? fileURLToPath(new URL('../build/workdsh-profile-release', import.meta.url)))
-if (!source) throw new Error('Usage: node scripts/pack-workdsh-profile.mjs <built-workdsh-source> [output]')
+const output = resolve(process.argv[3] ?? fileURLToPath(new URL('../build/quantdsh-profile-release', import.meta.url)))
+if (!source) throw new Error('Usage: node scripts/pack-quantdsh-profile.mjs <built-quantdsh-source> [output]')
 if (existsSync(output)) throw new Error('Use a fresh release directory; candidate archives are immutable')
 const project = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'))
-if (project.devDependencies?.['@deepseek-ai/dsh'] !== DSH_VERSION) throw new Error('WorkDSH source and Desktop must target the same official DSH version')
+if (project.devDependencies?.['@deepseek-ai/dsh'] !== DSH_VERSION) throw new Error('QuantDSH source and Desktop must target the same official DSH version')
 const sourceRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: source, encoding: 'utf8' }).trim()
 const sourcePath = relative(sourceRoot, source) || '.'
 const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim()
@@ -30,7 +30,7 @@ for (const name of RELEASE_PACKAGES) {
   verifyPackageDshReferences(pkg, DSH_VERSION)
   verifyBuiltPackageExports(pkg, directory)
   for (const [peer, range] of Object.entries(requiredRuntimeDependencies(pkg))) {
-    if (peer.startsWith('workdsh-')) {
+    if (peer.startsWith('quantdsh-')) {
       if (!RELEASE_PACKAGES.includes(peer)) throw new Error('Missing owned runtime dependency: ' + name + ' requires ' + peer)
       continue
     }
@@ -49,7 +49,7 @@ const { officialWebClients } = await import(pathToFileURL(join(source, 'scripts/
 const official = await officialWebClients()
 if (official.version !== DSH_VERSION) throw new Error('Official Web exporter and Desktop version differ')
 const officialWeb = { sources: official.sources, clients: official.clients.map(({ id, package: name, conditional }) => ({ id, package: name, conditional })) }
-const manifest = { kind: 'workdsh-desktop-source-candidate', version: project.version, harness: DSH_VERSION, sourceCommit, sourceDirty,
+const manifest = { kind: 'quantdsh-desktop-source-candidate', version: project.version, harness: DSH_VERSION, sourceCommit, sourceDirty,
   runtimeOverrides: project.pnpm?.overrides ?? {}, requiredPeers, packages, officialWeb }
 verifyProfileRelease(manifest, DSH_VERSION, RELEASE_PACKAGES)
 writeFileSync(join(output, 'release-manifest.json'), JSON.stringify(manifest, null, 2) + '\n')

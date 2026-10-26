@@ -14,5 +14,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    workdsh_desktop::run();
+    quantdsh_desktop::run();
 }

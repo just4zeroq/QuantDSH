@@ -1,5 +1,5 @@
 //! Native menu adapter for the optional `dsh` terminal command, mirroring
-//! workdsh apps/desktop/src/command-management.ts.
+//! the upstream desktop's command-management.ts.
 //! Official workers own all command installation mutations.
 
 use serde::Deserialize;
@@ -24,7 +24,7 @@ pub struct CommandState {
     pub kind: Option<String>,
 }
 
-/// workdsh `operation`: a second menu invocation while one is running is a no-op.
+/// quantdsh `operation`: a second menu invocation while one is running is a no-op.
 static BUSY: AtomicBool = AtomicBool::new(false);
 
 pub fn manage_command<R: Runtime>(app: &AppHandle<R>, resources: &Path, scope: &str) {
@@ -108,7 +108,7 @@ async fn execute(program: &Path, args: &[&str], env: &[(String, String)]) -> Res
     Ok(stdout)
 }
 
-/// workdsh `worker`.
+/// quantdsh `worker`.
 async fn worker(
     resources: &Path,
     action: &str,
@@ -158,7 +158,7 @@ fn is_fingerprint(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-/// workdsh `show`.
+/// quantdsh `show`.
 async fn show<R: Runtime>(app: &AppHandle<R>, resources: &Path, scope: &str) -> Result<(), String> {
     if !is_packaged() {
         message_box(app, "请安装正式 Desktop 包后管理 dsh 命令", None, &["关闭"], 0);
@@ -283,7 +283,7 @@ fn message_box<R: Runtime>(app: &AppHandle<R>, message: &str, title: Option<&str
 
 /// Electron `showMessageBox` with a separate `detail` block: the message and the
 /// detail are joined the way the native dialog renders them, and `title` stays
-/// optional because most WorkDSH boxes only carry a message.
+/// optional because most QuantDSH boxes only carry a message.
 fn choose_box<R: Runtime>(
     app: &AppHandle<R>,
     title: Option<&str>,

@@ -1,5 +1,5 @@
 //! Writable Profile/configuration over the official installation anchor. No custom Loader.
-//! Mirrors workdsh apps/desktop/src/local-runtime.ts.
+//! Mirrors the upstream desktop's local-runtime.ts.
 
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
@@ -10,7 +10,7 @@ use yaml_rust::{Yaml, YamlEmitter, YamlLoader};
 use crate::plugin_archive_cache::cached_package_manager;
 use crate::runtime_compatibility::sync_bundled_compatibility;
 
-pub const BASE_STATE: &str = ".workdsh-desktop-base.json";
+pub const BASE_STATE: &str = ".quantdsh-desktop-base.json";
 
 pub struct MaterializedProfile {
     pub profile: PathBuf,
@@ -61,7 +61,7 @@ fn member_defaults(release: &Value) -> Value {
     // JSON.stringify omits keys whose value is undefined, so an absent
     // packageManager must not appear in the serialized defaults.
     let mut object = Map::new();
-    object.insert("name".to_string(), json!("workdsh-member-profile"));
+    object.insert("name".to_string(), json!("quantdsh-member-profile"));
     object.insert("private".to_string(), json!(true));
     object.insert("type".to_string(), json!("module"));
     if let Some(package_manager) = release.get("packageManager") {
@@ -77,7 +77,7 @@ fn member_defaults(release: &Value) -> Value {
 }
 
 fn base_digest(source: &Path, base: &Value, version: &str) -> Result<String, String> {
-    let marker = source.join(".workdsh-desktop-release.json");
+    let marker = source.join(".quantdsh-desktop-release.json");
     let workspace = source.join("pnpm-workspace.yaml");
     let mut hasher = Sha256::new();
     hasher.update(b"installation-owned-defaults-v2");
@@ -216,7 +216,7 @@ fn ordered_json_option(value: &Option<Yaml>) -> String {
 }
 
 pub fn materialize_runtime_profile(source: &Path, home: &Path) -> Result<MaterializedProfile, String> {
-    let target = home.join("profiles").join("workdsh");
+    let target = home.join("profiles").join("quantdsh");
     let release = read_json(&source.join("package.json"))?;
     // Defaults are already installed in the immutable runtime. The member project owns only explicit additions.
     let base = member_defaults(&release);
@@ -558,7 +558,7 @@ pub fn official_launcher(source: &Path, home: &Path, executable: &Path, package_
         return Err("安装包缺少官方 DSH 或锁定的插件安装工具".to_string());
     }
     let pnpm = cached_package_manager(home, &package_manager)?;
-    let launcher = home.join(".workdsh-launch.mjs");
+    let launcher = home.join(".quantdsh-launch.mjs");
     let script = format!(
         "import {{ runCli }} from {};\nawait runCli({{ manageDesktopProfile: true, packageManager: {{ command: {}, args: [{}] }} }});\n",
         crate::plugin_archive_cache::js_string(&path_to_file_url(&cli)),
@@ -586,17 +586,17 @@ pub fn official_host_launcher(source: &Path, home: &Path, executable: &Path, pac
     }
     let anchor = source.join("profile-installation.json");
     if !anchor.exists() {
-        return Err("安装包缺少完整官方与 WorkDSH 安装清单".to_string());
+        return Err("安装包缺少完整官方与 QuantDSH 安装清单".to_string());
     }
-    let profile = home.join("profiles").join("workdsh");
-    let launcher = home.join(".workdsh-host.mjs");
+    let profile = home.join("profiles").join("quantdsh");
+    let launcher = home.join(".quantdsh-host.mjs");
     let pnpm = cached_package_manager(home, &package_manager)?;
     let patches_literal = {
         let items: Vec<String> = patches.iter().map(|path| crate::plugin_archive_cache::js_string(path)).collect();
         format!("[{}]", items.join(", "))
     };
     let script = format!(
-        "import {{ runProfile }} from {boot};\nimport {{ loadProfileDirectory, loadLayeredEnv, reportSkippedBundles }} from {app_boot};\nconst installAnchor = {anchor};\nconst profile = loadProfileDirectory('dsh', {profile}, installAnchor);\nreportSkippedBundles('dsh', profile);\nawait runProfile({{ environment: loadLayeredEnv('dsh'), profile: 'workdsh', resolvedProfile: {{ profile, installAnchor }}, patchFiles: {patches}, args: process.argv.slice(2), packageManager: {{ command: {executable}, args: [{pnpm}] }} }});\n",
+        "import {{ runProfile }} from {boot};\nimport {{ loadProfileDirectory, loadLayeredEnv, reportSkippedBundles }} from {app_boot};\nconst installAnchor = {anchor};\nconst profile = loadProfileDirectory('dsh', {profile}, installAnchor);\nreportSkippedBundles('dsh', profile);\nawait runProfile({{ environment: loadLayeredEnv('dsh'), profile: 'quantdsh', resolvedProfile: {{ profile, installAnchor }}, patchFiles: {patches}, args: process.argv.slice(2), packageManager: {{ command: {executable}, args: [{pnpm}] }} }});\n",
         boot = crate::plugin_archive_cache::js_string(&path_to_file_url(&boot)),
         app_boot = crate::plugin_archive_cache::js_string(&path_to_file_url(&app_boot)),
         anchor = crate::plugin_archive_cache::js_string(&anchor),
@@ -672,12 +672,12 @@ mod tests {
     #[cfg(target_os = "windows")]
     fn verbatim_prefix_is_dropped() {
         assert_eq!(
-            simplify_verbatim(Path::new(r"\\?\D:\code\dsh\profiles\workdsh")),
-            PathBuf::from(r"D:\code\dsh\profiles\workdsh")
+            simplify_verbatim(Path::new(r"\\?\D:\code\dsh\profiles\quantdsh")),
+            PathBuf::from(r"D:\code\dsh\profiles\quantdsh")
         );
         assert_eq!(
-            simplify_verbatim(Path::new(r"\\?\UNC\server\share\workdsh")),
-            PathBuf::from(r"\\server\share\workdsh")
+            simplify_verbatim(Path::new(r"\\?\UNC\server\share\quantdsh")),
+            PathBuf::from(r"\\server\share\quantdsh")
         );
         // A plain path must pass through untouched.
         assert_eq!(
@@ -695,9 +695,9 @@ mod tests {
         // "个人使用" click failed with 官方 DSH 未能完成启动.
         assert_eq!(
             path_to_file_url(Path::new(
-                r"\\?\D:\code\github\dsh-tauri\src-tauri\target\release\workdsh-runtime\profiles\workdsh\node_modules\@deepseek-ai\dsh\lib\profile-boot.js"
+                r"\\?\D:\code\github\dsh-tauri\src-tauri\target\release\quantdsh-runtime\profiles\quantdsh\node_modules\@deepseek-ai\dsh\lib\profile-boot.js"
             )),
-            "file:///D:/code/github/dsh-tauri/src-tauri/target/release/workdsh-runtime/profiles/workdsh/node_modules/@deepseek-ai/dsh/lib/profile-boot.js"
+            "file:///D:/code/github/dsh-tauri/src-tauri/target/release/quantdsh-runtime/profiles/quantdsh/node_modules/@deepseek-ai/dsh/lib/profile-boot.js"
         );
     }
 
@@ -727,9 +727,9 @@ mod tests {
     /// `ERR_INVALID_FILE_URL_PATH` before the Host is ever spawned.
     #[test]
     fn host_launcher_file_urls_resolve() {
-        let root = std::env::temp_dir().join(format!("workdsh-launcher-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("quantdsh-launcher-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
-        let source = root.join("workdsh-runtime");
+        let source = root.join("quantdsh-runtime");
         let home = root.join("home");
         let dsh_lib = source.join("node_modules").join("@deepseek-ai").join("dsh").join("lib");
         let app_lib = source.join("node_modules").join("@deepseek-ai").join("dsh-app-boot").join("lib");

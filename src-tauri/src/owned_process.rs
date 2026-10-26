@@ -1,5 +1,5 @@
 //! Stop only the process tree created by this carrier. A parent exit is not a tree exit.
-//! Mirrors workdsh apps/desktop/src/owned-process.ts. On Windows the carrier
+//! Mirrors the upstream desktop's owned-process.ts. On Windows the carrier
 //! additionally assigns each spawned root to a kill-on-close Job Object, which
 //! tracks the whole descendant tree by handle (immune to PID reuse); a
 //! creation-time rechecked `taskkill /T /F` remains the fallback.

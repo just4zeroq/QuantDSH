@@ -8,10 +8,10 @@
  *  `LSUIElement: true` is what makes the bundle an agent process at launch. The
  *  carrier then calls `setActivationPolicy(Regular)` (the Electron main process
  *  does the same with `app.setActivationPolicy('regular')`), so the primary app
- *  shows a Dock icon while a spawned `--workdsh-browser-worker-*` child — the
+ *  shows a Dock icon while a spawned `--quantdsh-browser-worker-*` child — the
  *  same executable — never flashes one before JavaScript runs.
  *
- *  Usage: node scripts/patch-macos-info-plist.mjs --app <path to WorkDSH.app>
+ *  Usage: node scripts/patch-macos-info-plist.mjs --app <path to QuantDSH.app>
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -19,7 +19,7 @@ import { join, resolve } from 'node:path'
 
 const args = process.argv.slice(2)
 const appFlag = args.indexOf('--app')
-if (appFlag < 0) throw new Error('Usage: node scripts/patch-macos-info-plist.mjs --app <path to WorkDSH.app>')
+if (appFlag < 0) throw new Error('Usage: node scripts/patch-macos-info-plist.mjs --app <path to QuantDSH.app>')
 
 const app = resolve(args[appFlag + 1])
 const plist = join(app, 'Contents', 'Info.plist')

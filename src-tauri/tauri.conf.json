@@ -36,8 +36,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../build/workdsh-runtime": "workdsh-runtime",
-      "../build/deployment/workdsh-config.json": "workdsh-config.json"
+      "../build/quantdsh-runtime": "quantdsh-runtime",
+      "../build/deployment/quantdsh-config.json": "quantdsh-config.json"
     },
     "externalBin": [],
     "macOS": {

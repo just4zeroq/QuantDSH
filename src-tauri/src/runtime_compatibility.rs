@@ -93,8 +93,8 @@ fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
  * A malformed user file remains untouched so DSH can report its own warnings.
  */
 pub fn sync_bundled_compatibility(source_profile: &Path, target_profile: &Path, runtime_version: &str) -> Result<(), String> {
-    let marker = target_profile.join(".workdsh-desktop-compatibility");
-    let previous_bundled_file = target_profile.join(".workdsh-desktop-bundled-grants.json");
+    let marker = target_profile.join(".quantdsh-desktop-compatibility");
+    let previous_bundled_file = target_profile.join(".quantdsh-desktop-bundled-grants.json");
     if let Ok(marker) = fs::read_to_string(&marker) {
         if marker.trim() == runtime_version {
             return Ok(());

@@ -64,7 +64,7 @@ export async function prepareOfficialRelease(desktopRoot, target) {
   const receipt = join(destination, 'receipt.json')
   const identity = cacheIdentity(target, artifact)
   if (isOfficialReleaseCacheValid(destination, target)) return destination
-  const archive = process.env.WORKDSH_OFFICIAL_DESKTOP_ARCHIVE ? resolve(process.env.WORKDSH_OFFICIAL_DESKTOP_ARCHIVE) : join(cache, new URL(artifact.url).pathname.split('/').at(-1))
+  const archive = process.env.QUANTDSH_OFFICIAL_DESKTOP_ARCHIVE ? resolve(process.env.QUANTDSH_OFFICIAL_DESKTOP_ARCHIVE) : join(cache, new URL(artifact.url).pathname.split('/').at(-1))
   if (!existsSync(archive)) {
     const partial = archive + '.partial'
     const response = await fetch(artifact.url, { signal: AbortSignal.timeout(600_000) })
@@ -78,7 +78,7 @@ export async function prepareOfficialRelease(desktopRoot, target) {
     if (target.startsWith('mac-')) execFileSync('/usr/bin/ditto', ['-x', '-k', archive, temporary], { stdio: 'inherit' })
     else {
       const require = createRequire(import.meta.url)
-      const sevenZip = process.env.WORKDSH_7ZIP ?? require('7zip-bin').path7z
+      const sevenZip = process.env.QUANTDSH_7ZIP ?? require('7zip-bin').path7z
       execFileSync(sevenZip, ['x', '-y', archive, '-o' + temporary], { stdio: 'inherit' })
       const inner = nestedArchive(temporary)
       if (inner) execFileSync(sevenZip, ['x', '-y', inner, '-o' + join(temporary, 'application')], { stdio: 'inherit' })

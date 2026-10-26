@@ -1,5 +1,5 @@
 //! Main-process authentication; the opaque member token never enters a renderer or CLI.
-//! Mirrors workdsh apps/desktop/src/enterprise-auth.ts.
+//! Mirrors the upstream desktop's enterprise-auth.ts.
 
 use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, State};

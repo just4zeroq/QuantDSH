@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /** Verify that the Tauri carrier contains the pinned official runtime and nothing else.
- *  Faithful port of workdsh apps/desktop/scripts/verify-workdsh-carrier.ts (afterPack),
+ *  Faithful port of the upstream desktop's verify-carrier script (afterPack),
  *  adapted to the Tauri bundle layout. Usage:
- *    node scripts/verify-packaged.mjs --root <dir containing workdsh-runtime>
+ *    node scripts/verify-packaged.mjs --root <dir containing quantdsh-runtime>
  *    node scripts/verify-packaged.mjs --installer <path to Setup.exe / dmg>   (extracts first)
  */
 import { spawnSync } from 'node:child_process'
@@ -13,7 +13,7 @@ import { join, resolve, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import { DSH_VERSION, OFFICIAL_PNPM_VERSION } from './runtime-version.mjs'
-import { ENTERPRISE_PACKAGES, PRODUCT_PACKAGES, RELEASE_PACKAGES } from './workdsh-package-boundary.mjs'
+import { ENTERPRISE_PACKAGES, PRODUCT_PACKAGES, RELEASE_PACKAGES } from './quantdsh-package-boundary.mjs'
 import { verifyBuiltPackageExports, verifyDefaultComposition, verifyDefaultProfile, verifyInstalledDshVersions, verifyOfficialWebPackages, verifyProfileRelease, verifyReleaseArchives } from './verify-profile-release.mjs'
 import { parseDeploymentConfig } from './prepare-deployment-config.mjs'
 import { verifyNativeWorkbenchFrame } from './native-workbench-frame-patch.mjs'
@@ -27,7 +27,7 @@ const require = createRequire(import.meta.url)
 // actually ships, and let `--installer` degrade on its own when the binary that
 // exists cannot read an NSIS container (see `extractInstaller`).
 const sevenZipModule = require('7zip-bin')
-const sevenZip = process.env.WORKDSH_7ZIP
+const sevenZip = process.env.QUANTDSH_7ZIP
   ?? [sevenZipModule.path7z, sevenZipModule.path7za, sevenZipModule.path7x].find(path => path && existsSync(path))
 
 function run(command, args, options = {}) {
@@ -44,8 +44,8 @@ function run(command, args, options = {}) {
 }
 
 function findPackagedRoot(directory, depth = 0) {
-  if (existsSync(join(directory, 'workdsh-runtime', 'primary-runtime', 'runtime.json'))) return directory
-  if (existsSync(join(directory, 'Resources', 'workdsh-runtime', 'primary-runtime', 'runtime.json'))) return join(directory, 'Resources')
+  if (existsSync(join(directory, 'quantdsh-runtime', 'primary-runtime', 'runtime.json'))) return directory
+  if (existsSync(join(directory, 'Resources', 'quantdsh-runtime', 'primary-runtime', 'runtime.json'))) return join(directory, 'Resources')
   if (depth > 4) return undefined
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
@@ -55,9 +55,9 @@ function findPackagedRoot(directory, depth = 0) {
 }
 
 function extractInstaller(installer) {
-  const target = mkdtempSync(join(tmpdir(), 'workdsh-verify-'))
+  const target = mkdtempSync(join(tmpdir(), 'quantdsh-verify-'))
   if (/\.dmg$/i.test(installer)) {
-    const mount = mkdtempSync(join(tmpdir(), 'workdsh-mount-'))
+    const mount = mkdtempSync(join(tmpdir(), 'quantdsh-mount-'))
     try {
       run('hdiutil', ['attach', '-nobrowse', '-mountpoint', mount, installer])
       const app = readdirSync(mount).find(name => /\.app$/i.test(name))
@@ -128,22 +128,22 @@ function installSilently(installer, directory) {
 
 async function verifyPackagedCarrier(packagedRoot) {
   const platform = process.platform === 'win32' ? 'win32' : process.platform === 'darwin' ? 'darwin' : undefined
-  const target = platform === 'win32' ? 'win-x64' : `mac-${process.env.WORKDSH_MAC_ARCH ?? process.arch}`
+  const target = platform === 'win32' ? 'win-x64' : `mac-${process.env.QUANTDSH_MAC_ARCH ?? process.arch}`
   if (!platform) throw new Error('Unsupported packaged binary resource target')
 
   // Deployment configuration must match this build byte for byte.
-  const packagedDeployment = readFileSync(join(packagedRoot, 'workdsh-config.json'))
-  const generatedDeployment = readFileSync(join(root, 'build/deployment/workdsh-config.json'))
+  const packagedDeployment = readFileSync(join(packagedRoot, 'quantdsh-config.json'))
+  const generatedDeployment = readFileSync(join(root, 'build/deployment/quantdsh-config.json'))
   parseDeploymentConfig(JSON.parse(packagedDeployment.toString('utf8')))
   if (!packagedDeployment.equals(generatedDeployment)) throw new Error('Packaged deployment configuration differs from this build')
 
-  const runtime = join(packagedRoot, 'workdsh-runtime')
+  const runtime = join(packagedRoot, 'quantdsh-runtime')
   if (existsSync(join(runtime, 'node'))) throw new Error('Desktop contains a duplicate Node runtime outside the official primary runtime')
   const primary = JSON.parse(readFileSync(join(runtime, 'primary-runtime', 'runtime.json'), 'utf8'))
   if (!primary.pnpm || primary.pnpm !== OFFICIAL_PNPM_VERSION) throw new Error('Packaged official primary runtime is missing or has another pnpm version')
   verifyOfficialRuntimeProvenance(join(runtime, 'primary-runtime'), target)
 
-  const profile = join(runtime, 'profiles', 'workdsh')
+  const profile = join(runtime, 'profiles', 'quantdsh')
   // Inspect copied bytes: a preparation log cannot prove the frame reached this installer.
   // This one verifier reads asynchronously (it compares hashes), so it must be
   // awaited: without it the caller's `finally` deletes an extracted or silently
@@ -168,13 +168,13 @@ async function verifyPackagedCarrier(packagedRoot) {
   }
   const productPackages = new Set(PRODUCT_PACKAGES)
   const selected = profileManifest.dsh?.profile?.bundles ?? []
-  const selectedWorkdsh = selected.filter(name => name.startsWith('workdsh-'))
-  const directWorkdsh = Object.keys(profileManifest.dependencies ?? {}).filter(name => name.startsWith('workdsh-'))
+  const selectedWorkdsh = selected.filter(name => name.startsWith('quantdsh-'))
+  const directWorkdsh = Object.keys(profileManifest.dependencies ?? {}).filter(name => name.startsWith('quantdsh-'))
   if (selectedWorkdsh.length !== productPackages.size || selectedWorkdsh.some(name => !productPackages.has(name))) {
-    throw new Error(`Desktop must select exactly ${productPackages.size} WorkDSH product bundles, found ${selectedWorkdsh.join(', ')}`)
+    throw new Error(`Desktop must select exactly ${productPackages.size} QuantDSH product bundles, found ${selectedWorkdsh.join(', ')}`)
   }
   if (directWorkdsh.length !== productPackages.size || directWorkdsh.some(name => !productPackages.has(name))) {
-    throw new Error(`Desktop must directly install exactly ${productPackages.size} WorkDSH product bundles, found ${directWorkdsh.join(', ')}`)
+    throw new Error(`Desktop must directly install exactly ${productPackages.size} QuantDSH product bundles, found ${directWorkdsh.join(', ')}`)
   }
   const lockfile = readFileSync(join(profile, 'pnpm-lock.yaml'), 'utf8')
   for (const item of release.packages) {
@@ -182,7 +182,7 @@ async function verifyPackagedCarrier(packagedRoot) {
     const installed = JSON.parse(readFileSync(join(profile, 'node_modules', item.name, 'package.json'), 'utf8'))
     if (installed.version !== item.version) throw new Error(`Bundled owned version mismatch: ${item.name}`)
     if (!productPackages.has(item.name) && Object.hasOwn(profileManifest.dependencies ?? {}, item.name)) {
-      throw new Error(`Internal WorkDSH service is a direct product dependency: ${item.name}`)
+      throw new Error(`Internal QuantDSH service is a direct product dependency: ${item.name}`)
     }
     const dependencies = productPackages.has(item.name) ? profileManifest.dependencies : profileManifest.optionalDependencies
     if (dependencies?.[item.name]?.replaceAll('\\', '/') !== `file:../../package-cache/${item.filename}`) {
@@ -196,7 +196,7 @@ async function verifyPackagedCarrier(packagedRoot) {
   verifyDefaultComposition(patch)
   for (const name of release.packages.map(item => item.name).filter(name => !productPackages.has(name) && !ENTERPRISE_PACKAGES.includes(name))) {
     if (['workdsh-contracts', 'workdsh-ui', 'workdsh-provider-browser-session'].includes(name)) continue // inserted by the bundle patch
-    if (!patch.includes(`name: ${name}`)) throw new Error(`Internal WorkDSH service is missing from Profile patch: ${name}`)
+    if (!patch.includes(`name: ${name}`)) throw new Error(`Internal QuantDSH service is missing from Profile patch: ${name}`)
   }
   if (/file:(?:\/|[a-z]:)/iu.test(lockfile)) throw new Error('Bundled plugin lockfile contains a build-machine path')
 
@@ -241,7 +241,7 @@ if (rootFlag >= 0) {
   const extracted = extractInstaller(installer)
   try {
     const packagedRoot = findPackagedRoot(extracted.directory)
-    if (!packagedRoot) throw new Error('No packaged workdsh-runtime found in ' + basename(installer))
+    if (!packagedRoot) throw new Error('No packaged quantdsh-runtime found in ' + basename(installer))
     await verifyPackagedCarrier(packagedRoot)
   } finally { extracted.cleanup() }
 } else {

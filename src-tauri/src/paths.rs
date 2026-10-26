@@ -1,16 +1,16 @@
 use std::path::{Path, PathBuf};
 
-pub const PROFILE_NAME: &str = "workdsh";
+pub const PROFILE_NAME: &str = "quantdsh";
 
-/// Electron parity: `app.getPath('userData')` = %APPDATA%\WorkDSH on Windows and
-/// ~/Library/Application Support/WorkDSH on macOS. The installed `dsh` command
+/// Electron parity: `app.getPath('userData')` = %APPDATA%\QuantDSH on Windows and
+/// ~/Library/Application Support/QuantDSH on macOS. The installed `dsh` command
 /// (runtime/cli/command-cli.js) locates this exact directory, so the carrier must
-/// resolve it identically. `WORKDSH_DESKTOP_USER_DATA` must be absolute.
+/// resolve it identically. `QUANTDSH_DESKTOP_USER_DATA` must be absolute.
 ///
-/// Electron also honours Chromium's `--user-data-dir` switch, which workdsh's own
+/// Electron also honours Chromium's `--user-data-dir` switch, which quantdsh's own
 /// installer probe relies on to isolate a run; the flag is accepted here too.
 pub fn user_data_dir() -> Result<PathBuf, String> {
-    if let Some(overridden) = env_path("WORKDSH_DESKTOP_USER_DATA") {
+    if let Some(overridden) = env_path("QUANTDSH_DESKTOP_USER_DATA") {
         if !overridden.is_absolute() {
             return Err("Desktop user data override must be absolute".to_string());
         }
@@ -21,11 +21,11 @@ pub fn user_data_dir() -> Result<PathBuf, String> {
     }
     if cfg!(target_os = "windows") {
         let appdata = std::env::var_os("APPDATA").ok_or_else(|| "APPDATA is not set".to_string())?;
-        return Ok(PathBuf::from(appdata).join("WorkDSH"));
+        return Ok(PathBuf::from(appdata).join("QuantDSH"));
     }
     if cfg!(target_os = "macos") {
         let home = std::env::var_os("HOME").ok_or_else(|| "HOME is not set".to_string())?;
-        return Ok(PathBuf::from(home).join("Library").join("Application Support").join("WorkDSH"));
+        return Ok(PathBuf::from(home).join("Library").join("Application Support").join("QuantDSH"));
     }
     let config = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
@@ -33,7 +33,7 @@ pub fn user_data_dir() -> Result<PathBuf, String> {
             let home = std::env::var_os("HOME").unwrap_or_default();
             PathBuf::from(home).join(".config")
         });
-    Ok(config.join("WorkDSH"))
+    Ok(config.join("QuantDSH"))
 }
 
 fn env_path(name: &str) -> Option<PathBuf> {
@@ -66,7 +66,7 @@ fn user_data_flag() -> Option<PathBuf> {
 /// Mirrors `bundledProfileDirectory`, `bundledPrimaryRuntime`, `bundledNodeExecutable`
 /// and `runtimeHome` from workdsh-main.ts, including the environment overrides.
 ///
-/// `runtime_root` is no longer hard-wired to `<resources>/workdsh-runtime`: it is
+/// `runtime_root` is no longer hard-wired to `<resources>/quantdsh-runtime`: it is
 /// whichever pack [`crate::runtime_pack::locate`] verified first. When the bundled
 /// tree is complete that is exactly the same path as before, so the Electron
 /// start-up path is unchanged.
@@ -98,7 +98,7 @@ pub struct RuntimePaths {
 impl RuntimePaths {
     pub fn resolve(resource_dir: &Path, user_data: &Path) -> Result<Self, String> {
         // Tauri canonicalizes the executable before deriving `resource_dir`, so on
-        // Windows this arrives as `\\?\D:\…\workdsh-runtime`. Every location below
+        // Windows this arrives as `\\?\D:\…\quantdsh-runtime`. Every location below
         // is derived from it and every one of them ends up as an argument to Node
         // (profile path, install anchor, package manager), so normalise once here
         // instead of patching each consumer.
@@ -119,7 +119,7 @@ impl RuntimePaths {
             problems,
             install_root,
         } = pack;
-        let dsh_home = env_path("WORKDSH_DSH_HOME").unwrap_or_else(|| user_data.join("dsh-home"));
+        let dsh_home = env_path("QUANTDSH_DSH_HOME").unwrap_or_else(|| user_data.join("dsh-home"));
         Ok(Self {
             resource_dir: resource_dir.to_path_buf(),
             user_data: user_data.to_path_buf(),
@@ -146,6 +146,6 @@ impl RuntimePaths {
     }
 
     pub fn deployment_config_file(&self) -> PathBuf {
-        self.resource_dir.join("workdsh-config.json")
+        self.resource_dir.join("quantdsh-config.json")
     }
 }

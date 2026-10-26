@@ -1,7 +1,10 @@
 import { writeFileSync } from 'node:fs'
 import { dirname, join, delimiter } from 'node:path'
-import { PRODUCT_PACKAGES } from './workdsh-package-boundary.mjs'
+import { PRODUCT_PACKAGES } from './quantdsh-package-boundary.mjs'
 
+// Service keys and package names are owned by the Profile source, not the
+// carrier: they must keep their shipped spelling even though the product was
+// renamed, otherwise the packaged Host starts but every lookup misses.
 export const PRODUCT_SERVICES = Object.freeze({
   'workdsh-plugin-connectors': 'workdshConnectors',
   'workdsh-plugin-experts': 'workdshExperts',
@@ -27,18 +30,18 @@ export function inspectStartedHost(ctx, products, platformServices) {
     if (!fibers.length || fibers.some(fiber => fiber.state !== 2)) throw new Error('Packaged Host product initialization is incomplete: ' + name)
   }
   for (const service of platformServices) if (!ctx.get(service)) throw new Error('Packaged Host platform service is unavailable: ' + service)
-  return { kind: 'workdsh-packaged-host-ready', products: Object.keys(products).sort(), services: Object.values(products).sort(), installAnchor: profile.installAnchor }
+  return { kind: 'quantdsh-packaged-host-ready', products: Object.keys(products).sort(), services: Object.values(products).sort(), installAnchor: profile.installAnchor }
 }
 
 /** A temporary owned probe observes the official appReady public contract;
  * the product's officialHostLauncher and installed runtime remain unchanged. */
 export function prepareHostSmokeProbe(home) {
   if (JSON.stringify(Object.keys(PRODUCT_SERVICES).sort()) !== JSON.stringify([...PRODUCT_PACKAGES].sort())) throw new Error('Host smoke product service map differs from the release inventory')
-  const probe = join(home, '.workdsh-host-smoke-probe.mjs')
-  const source = `const inspect = ${inspectStartedHost.toString()};\nexport const name='workdsh-packaged-host-smoke';\nexport const inject=${JSON.stringify(['appReady', ...REQUIRED_PLATFORM_SERVICES, ...Object.values(PRODUCT_SERVICES)])};\nexport function apply(ctx){return ctx.effect(()=>ctx.get('appReady').onReady(()=>{const receipt=inspect(ctx,${JSON.stringify(PRODUCT_SERVICES)},${JSON.stringify(REQUIRED_PLATFORM_SERVICES)});process.send?.(receipt);}),'packaged-host-readiness');}\n`
+  const probe = join(home, '.quantdsh-host-smoke-probe.mjs')
+  const source = `const inspect = ${inspectStartedHost.toString()};\nexport const name='quantdsh-packaged-host-smoke';\nexport const inject=${JSON.stringify(['appReady', ...REQUIRED_PLATFORM_SERVICES, ...Object.values(PRODUCT_SERVICES)])};\nexport function apply(ctx){return ctx.effect(()=>ctx.get('appReady').onReady(()=>{const receipt=inspect(ctx,${JSON.stringify(PRODUCT_SERVICES)},${JSON.stringify(REQUIRED_PLATFORM_SERVICES)});process.send?.(receipt);}),'packaged-host-readiness');}\n`
   writeFileSync(probe, source, { mode: 0o600 })
   const patch = join(home, '.headless-host-smoke.patch.yml')
-  writeFileSync(patch, JSON.stringify([{ id: 'webserver', config: { host: '127.0.0.1', port: 0 } }, { insert: [{ id: 'workdsh-packaged-host-smoke', name: probe }] }]), { mode: 0o600 })
+  writeFileSync(patch, JSON.stringify([{ id: 'webserver', config: { host: '127.0.0.1', port: 0 } }, { insert: [{ id: 'quantdsh-packaged-host-smoke', name: probe }] }]), { mode: 0o600 })
   return patch
 }
 
@@ -70,7 +73,7 @@ export function waitForPackagedHostReady(child, { timeoutMs = 90_000 } = {}) {
       finish()
     }
     child.stdout.on('data', read); child.stderr.on('data', read)
-    child.on('message', message => { if (message?.kind === 'workdsh-packaged-host-ready') { receipt = message; finish() } })
+    child.on('message', message => { if (message?.kind === 'quantdsh-packaged-host-ready') { receipt = message; finish() } })
     child.once('error', error => { clearTimeout(timer); reject(error) })
     child.once('exit', code => { clearTimeout(timer); reject(new Error('Packaged Host exited before readiness (' + code + '): ' + diagnostics())) })
   })

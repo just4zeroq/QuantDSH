@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Boot the public official Profile API with release resources and no local node_modules.
- *  Port of workdsh apps/desktop/scripts/verify-installation-anchor.mjs using the
+ *  Port of the upstream desktop's verify-installation-anchor.mjs using the
  *  local JS port of the Profile helpers (the carrier itself is Rust). */
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
@@ -9,12 +9,12 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { materializeRuntimeProfile, officialHostLauncher } from './local-runtime-port.mjs'
 import { DSH_VERSION } from './runtime-version.mjs'
-import { PRODUCT_PACKAGES } from './workdsh-package-boundary.mjs'
+import { PRODUCT_PACKAGES } from './quantdsh-package-boundary.mjs'
 import { verifyOfficialWebPackages } from './verify-profile-release.mjs'
 import { prepareHostSmokeProbe, hostSmokeEnvironment, waitForPackagedHostReady, scrubHostDiagnostics as scrub } from './packaged-host-smoke.mjs'
 
-const runtime = resolve(process.argv[2] ?? fileURLToPath(new URL('../build/workdsh-runtime', import.meta.url)))
-const source = join(runtime, 'profiles/workdsh')
+const runtime = resolve(process.argv[2] ?? fileURLToPath(new URL('../build/quantdsh-runtime', import.meta.url)))
+const source = join(runtime, 'profiles/quantdsh')
 const primary = join(runtime, 'primary-runtime')
 const executable = join(primary, 'dependencies/node/bin', process.platform === 'win32' ? 'node.exe' : 'node')
 const pnpm = join(primary, 'dependencies/pnpm/bin/pnpm.cjs')
@@ -22,7 +22,7 @@ const release = JSON.parse(readFileSync(join(runtime, 'package-cache/release-man
 const actual = JSON.parse(readFileSync(join(source, 'node_modules/@deepseek-ai/dsh/package.json'), 'utf8')).version
 if (actual !== DSH_VERSION) throw new Error('Installation anchor uses another official DSH version')
 verifyOfficialWebPackages(release, source)
-const home = mkdtempSync(join(tmpdir(), 'workdsh-anchor-check-'))
+const home = mkdtempSync(join(tmpdir(), 'quantdsh-anchor-check-'))
 let child
 let finished
 let diagnostics = () => ''

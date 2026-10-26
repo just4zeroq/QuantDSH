@@ -15,7 +15,7 @@ export function patchNativeWorkbenchFrame(source){
 // Replace this installation's directory entry, never mutate a pnpm hardlink
 // in place (which could otherwise change a different Profile or the store).
 async function replaceRuntimeFile(target,expected,next){
- const temporary=`${target}.workdsh-frame-${randomUUID()}`;
+ const temporary=`${target}.quantdsh-frame-${randomUUID()}`;
  const mode=(await stat(target)).mode&0o777;
  try{
   await writeFile(temporary,next,{flag:'wx',mode});

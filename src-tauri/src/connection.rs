@@ -42,7 +42,7 @@ pub fn connection_partition(connection: &DesktopConnection) -> Option<String> {
                 _ => portal_origin.clone(),
             };
             Some(format!(
-                "workdsh-enterprise-{}",
+                "quantdsh-enterprise-{}",
                 enterprise_namespace(&origin, organization_id.as_deref().unwrap_or(""), principal_id.as_deref().unwrap_or(""))
             ))
         }

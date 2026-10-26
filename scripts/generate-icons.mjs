@@ -1,5 +1,5 @@
 /** Generate the Tauri icon set from the repository-owned cross-platform artwork.
- *  Mirrors workdsh build/app-icon.png (1024x1024 RGBA16) and build/app-icon-mac.png,
+ *  Mirrors quantdsh build/app-icon.png (1024x1024 RGBA16) and build/app-icon-mac.png,
  *  which are produced by the upstream generate-windows-app-icon.mjs /
  *  generate-mac-app-icon.mjs / generate-tray-icons.mjs pipeline. */
 

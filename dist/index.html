@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WorkDSH</title>
+<title>QuantDSH</title>
 <style>
   html, body { margin: 0; height: 100%; background: #111113; color: #e8e8ea;
     font: 14px/1.6 system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
@@ -21,11 +21,11 @@
   <div id="error"></div>
 </main>
 <script>
-  // The WorkDSH carrier never loads a bundled frontend: every surface (entry,
-  // enterprise login, loading) is served by the Rust `workdsh://` protocol, and
+  // The QuantDSH carrier never loads a bundled frontend: every surface (entry,
+  // enterprise login, loading) is served by the Rust `quantdsh://` protocol, and
   // the workspace itself is the official Host on 127.0.0.1. This placeholder is
   // only reachable through `tauri dev`'s built-in asset server.
-  window.__WORKDSH_ERROR__ = (message) => {
+  window.__QUANTDSH_ERROR__ = (message) => {
     document.getElementById('spinner').style.display = 'none'
     document.getElementById('status').textContent = '启动失败'
     document.getElementById('error').textContent = message

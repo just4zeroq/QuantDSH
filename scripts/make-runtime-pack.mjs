@@ -29,23 +29,23 @@ const option = (name, fallback) => {
 
 const defaultTarget = process.platform === 'win32' ? 'win-x64' : `mac-${process.arch}`
 const target = option('--target', defaultTarget)
-const runtime = resolve(option('--runtime', join(root, 'build', 'workdsh-runtime')))
+const runtime = resolve(option('--runtime', join(root, 'build', 'quantdsh-runtime')))
 const outDir = resolve(option('--out', join(root, 'build', 'packages')))
 const version = JSON.parse(readFileSync(join(root, 'src-tauri', 'tauri.conf.json'), 'utf8')).version
 
 if (!existsSync(join(runtime, 'primary-runtime', 'runtime.json'))) {
-  throw new Error(`Not an assembled WorkDSH runtime (missing primary-runtime/runtime.json): ${runtime}`)
+  throw new Error(`Not an assembled QuantDSH runtime (missing primary-runtime/runtime.json): ${runtime}`)
 }
 
 /** Keep in sync with `RuntimeLayout::required_files()` in src-tauri/src/runtime_pack.rs. */
 const required = [
   'primary-runtime/runtime.json',
-  'profiles/workdsh/package.json',
-  'profiles/workdsh/cordis.patch.yml',
-  'profiles/workdsh/profile-installation.json',
-  'profiles/workdsh/node_modules/@deepseek-ai/dsh/lib/bin.js',
-  'profiles/workdsh/node_modules/@deepseek-ai/dsh/lib/profile-boot.js',
-  'profiles/workdsh/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js',
+  'profiles/quantdsh/package.json',
+  'profiles/quantdsh/cordis.patch.yml',
+  'profiles/quantdsh/profile-installation.json',
+  'profiles/quantdsh/node_modules/@deepseek-ai/dsh/lib/bin.js',
+  'profiles/quantdsh/node_modules/@deepseek-ai/dsh/lib/profile-boot.js',
+  'profiles/quantdsh/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js',
   `primary-runtime/dependencies/node/bin/${process.platform === 'win32' ? 'node.exe' : 'node'}`,
   'primary-runtime/dependencies/pnpm/bin/pnpm.cjs',
   process.platform === 'win32'
@@ -86,7 +86,7 @@ const entries = walk(runtime)
 
 const manifest = {
   protocol: 1,
-  product: 'WorkDSH',
+  product: 'QuantDSH',
   version,
   target,
   // Node vocabulary: the carrier compares these with `process.platform`/`process.arch`.

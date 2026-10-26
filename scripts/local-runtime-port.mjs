@@ -1,6 +1,6 @@
 /** JS port of the local-runtime Profile helpers used only by release verification.
  *  The shipped carrier implements the same semantics in Rust (src-tauri/src/local_runtime.rs);
- *  keep both in sync. Mirrors workdsh apps/desktop/src/local-runtime.ts +
+ *  keep both in sync. Mirrors the upstream desktop's local-runtime.ts +
  *  runtime-compatibility.ts + plugin-archive-cache.ts. */
 import { createHash, randomUUID } from 'node:crypto'
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
@@ -8,15 +8,15 @@ import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { load, dump } from 'js-yaml'
 
-const BASE_STATE = '.workdsh-desktop-base.json'
+const BASE_STATE = '.quantdsh-desktop-base.json'
 const json = file => JSON.parse(readFileSync(file, 'utf8'))
 const writeJson = (file, value) => writeFileSync(file, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 })
 function memberDefaults(release) {
-  return { name: 'workdsh-member-profile', private: true, type: 'module', packageManager: release.packageManager,
+  return { name: 'quantdsh-member-profile', private: true, type: 'module', packageManager: release.packageManager,
     dependencies: {}, ...(release.dsh ? { dsh: structuredClone(release.dsh) } : {}) }
 }
 function baseDigest(source, base, version) {
-  const marker = join(source, '.workdsh-desktop-release.json')
+  const marker = join(source, '.quantdsh-desktop-release.json')
   const workspace = join(source, 'pnpm-workspace.yaml')
   return createHash('sha256').update('installation-owned-defaults-v2').update(JSON.stringify(base)).update(version).update(existsSync(marker) ? readFileSync(marker) : '')
     .update(existsSync(workspace) ? readFileSync(workspace) : '').digest('hex')
@@ -46,7 +46,7 @@ function updatePackagePolicy(source, target) {
   return true
 }
 export function materializeRuntimeProfile(source, home) {
-  const target = join(home, 'profiles', 'workdsh')
+  const target = join(home, 'profiles', 'quantdsh')
   const release = json(join(source, 'package.json'))
   const base = memberDefaults(release)
   const version = json(join(source, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')).version
@@ -118,7 +118,7 @@ export function cachedPackageManager(home, pnpm) {
   const fixedManager = Number(manifest.version.split('.')[0]) >= 11
     ? ['--pm-on-fail=ignore', '--config.verify-deps-before-run=false']
     : ['--config.manage-package-manager-versions=false', '--config.package-manager-strict=false']
-  const runner = join(home, '.workdsh-package-manager.mjs')
+  const runner = join(home, '.quantdsh-package-manager.mjs')
   writeFileSync(runner, String.raw`import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -154,11 +154,11 @@ export function officialHostLauncher(source, home, executable, packageManager, p
   const boot = join(source, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'profile-boot.js')
   const appBoot = join(source, 'node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'index.js')
   if (!existsSync(boot) || !existsSync(appBoot) || !existsSync(packageManager)) throw new Error('安装包缺少官方 Profile 启动接口')
-  const anchor = join(source, 'profile-installation.json'), profile = join(home, 'profiles', 'workdsh')
-  if (!existsSync(anchor)) throw new Error('安装包缺少完整官方与 WorkDSH 安装清单')
-  const launcher = join(home, '.workdsh-host.mjs')
+  const anchor = join(source, 'profile-installation.json'), profile = join(home, 'profiles', 'quantdsh')
+  if (!existsSync(anchor)) throw new Error('安装包缺少完整官方与 QuantDSH 安装清单')
+  const launcher = join(home, '.quantdsh-host.mjs')
   packageManager = cachedPackageManager(home, packageManager)
-  writeFileSync(launcher, `import { runProfile } from ${JSON.stringify(pathToFileURL(boot).href)};\nimport { loadProfileDirectory, loadLayeredEnv, reportSkippedBundles } from ${JSON.stringify(pathToFileURL(appBoot).href)};\nconst installAnchor = ${JSON.stringify(anchor)};\nconst profile = loadProfileDirectory('dsh', ${JSON.stringify(profile)}, installAnchor);\nreportSkippedBundles('dsh', profile);\nawait runProfile({ environment: loadLayeredEnv('dsh'), profile: 'workdsh', resolvedProfile: { profile, installAnchor }, patchFiles: ${JSON.stringify(patches)}, args: process.argv.slice(2), packageManager: { command: ${JSON.stringify(executable)}, args: [${JSON.stringify(packageManager)}] } });\n`, { mode: 0o600 })
+  writeFileSync(launcher, `import { runProfile } from ${JSON.stringify(pathToFileURL(boot).href)};\nimport { loadProfileDirectory, loadLayeredEnv, reportSkippedBundles } from ${JSON.stringify(pathToFileURL(appBoot).href)};\nconst installAnchor = ${JSON.stringify(anchor)};\nconst profile = loadProfileDirectory('dsh', ${JSON.stringify(profile)}, installAnchor);\nreportSkippedBundles('dsh', profile);\nawait runProfile({ environment: loadLayeredEnv('dsh'), profile: 'quantdsh', resolvedProfile: { profile, installAnchor }, patchFiles: ${JSON.stringify(patches)}, args: process.argv.slice(2), packageManager: { command: ${JSON.stringify(executable)}, args: [${JSON.stringify(packageManager)}] } });\n`, { mode: 0o600 })
   return launcher
 }
 
@@ -185,8 +185,8 @@ function writeGrants(filename, grants) {
   } finally { rmSync(temporary, { force: true }) }
 }
 export function syncBundledCompatibility(sourceProfile, targetProfile, runtimeVersion) {
-  const marker = join(targetProfile, '.workdsh-desktop-compatibility')
-  const previousBundledFile = join(targetProfile, '.workdsh-desktop-bundled-grants.json')
+  const marker = join(targetProfile, '.quantdsh-desktop-compatibility')
+  const previousBundledFile = join(targetProfile, '.quantdsh-desktop-bundled-grants.json')
   if (existsSync(marker) && readFileSync(marker, 'utf8').trim() === runtimeVersion) return
   const source = join(sourceProfile, 'compatibility.json')
   const target = join(targetProfile, 'compatibility.json')
@@ -197,7 +197,7 @@ export function syncBundledCompatibility(sourceProfile, targetProfile, runtimeVe
     if (existsSync(target)) current = readGrants(target)
     if (existsSync(previousBundledFile)) previousBundled = readGrants(previousBundledFile)
   } catch (error) {
-    console.warn(`WorkDSH cannot update ${target}; repair its compatibility metadata to receive bundled plugin grants: ${String(error)}`)
+    console.warn(`QuantDSH cannot update ${target}; repair its compatibility metadata to receive bundled plugin grants: ${String(error)}`)
     return
   }
   for (const [key, versions] of Object.entries(bundled)) {

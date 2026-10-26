@@ -1,5 +1,5 @@
 //! Home-owned loopback origin, configured through the official webserver row.
-//! Mirrors workdsh apps/desktop/src/runtime-port.ts.
+//! Mirrors the upstream desktop's runtime-port.ts.
 
 use regex::Regex;
 use serde_json::Value;
@@ -11,8 +11,8 @@ use std::sync::OnceLock;
 use yaml_rust::{Yaml, YamlLoader};
 
 const HOST: &str = "127.0.0.1";
-const STATE_FILE: &str = ".workdsh-loopback.json";
-const PATCH_FILE: &str = ".workdsh-loopback.patch.yml";
+const STATE_FILE: &str = ".quantdsh-loopback.json";
+const PATCH_FILE: &str = ".quantdsh-loopback.patch.yml";
 const PREFERRED_PORT: u16 = 3080;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** The installed command delegates to the official CLI in the selected account space.
- *  Faithful CommonJS port of workdsh apps/desktop/src/command-cli.ts. */
+ *  Faithful CommonJS port of the upstream desktop's command-cli.ts. */
 'use strict'
 
 const { readFileSync, existsSync } = require('node:fs')
@@ -33,21 +33,21 @@ function selectCommandSpace(context, request) {
 }
 
 async function main() {
-  const userData = process.env.WORKDSH_DESKTOP_USER_DATA ?? (process.platform === 'win32'
-    ? join(process.env.APPDATA ?? '', 'WorkDSH')
-    : join(homedir(), 'Library/Application Support/WorkDSH'))
+  const userData = process.env.QUANTDSH_DESKTOP_USER_DATA ?? (process.platform === 'win32'
+    ? join(process.env.APPDATA ?? '', 'QuantDSH')
+    : join(homedir(), 'Library/Application Support/QuantDSH'))
   const context = JSON.parse(readFileSync(join(userData, 'command-context.json'), 'utf8'))
   const args = process.argv.slice(2)
-  const spaceOption = args.findIndex(value => value.startsWith('--workdsh-space='))
-  const request = spaceOption < 0 ? undefined : args.splice(spaceOption, 1)[0].slice('--workdsh-space='.length)
+  const spaceOption = args.findIndex(value => value.startsWith('--quantdsh-space='))
+  const request = spaceOption < 0 ? undefined : args.splice(spaceOption, 1)[0].slice('--quantdsh-space='.length)
   const space = selectCommandSpace(context, request)
-  const launcher = join(space.home, '.workdsh-launch.mjs')
+  const launcher = join(space.home, '.quantdsh-launch.mjs')
   const patch = join(space.home, '.enterprise-desktop.patch.yml')
   if (space.mode === 'enterprise' && (!existsSync(join(space.home, 'enterprise-auth.json')) || !existsSync(patch))) throw new Error('企业账号已退出，请重新登录 Desktop')
   if (!existsSync(launcher)) throw new Error('请先在 Desktop 打开此工作区，完成官方 Profile 初始化')
   const runtime = dirname(dirname(dirname(__filename)))
   const primary = join(runtime, 'primary-runtime')
-  const basePatch = join(runtime, 'profiles/workdsh/cordis.patch.yml')
+  const basePatch = join(runtime, 'profiles/quantdsh/cordis.patch.yml')
   const patches = [...(existsSync(basePatch) ? ['--patch', basePatch] : []), ...(space.mode === 'enterprise' ? ['--patch', patch] : [])]
   const env = space.mode === 'enterprise' ? enterpriseEnvironment(space.root, process.execPath, process.env) : { ...process.env }
   Object.assign(env, {
@@ -56,8 +56,8 @@ async function main() {
     DSH_BUNDLED_PRIMARY_RUNTIME: primary,
     ELECTRON_RUN_AS_NODE: undefined,
   })
-  process.stderr.write(`WorkDSH：${space.label}\n`)
-  const child = spawn(process.execPath, [launcher, '--profile', 'workdsh', ...patches, ...args], { cwd: space.home, env, stdio: 'inherit' })
+  process.stderr.write(`QuantDSH：${space.label}\n`)
+  const child = spawn(process.execPath, [launcher, '--profile', 'quantdsh', ...patches, ...args], { cwd: space.home, env, stdio: 'inherit' })
   child.once('error', error => { process.stderr.write(error.message + '\n'); process.exitCode = 1 })
   child.once('exit', code => { process.exitCode = code ?? 1 })
 }
