@@ -8,11 +8,19 @@
 > 3. 组织粒度：用户在**官网新建组织、加入人员**，每人到平台**申请 key**，在**本地客户端用 key 登录**。
 > 4. 管理 UI：组织的管理界面在**官网**里，不在客户端。
 > 5. 本轮落点：**客户端 + 服务端一起交付**（新建独立官网/平台服务 + 客户端 carrier 改造）。
-> 6. 服务端归属：**新建独立服务**（独立仓库/技术栈），与现有 workdsh 后台解耦。
+> 6. 服务端归属：**新建独立服务**（独立仓库/技术栈），与既有后台解耦。
 > 7. 离线强制：**本地优先**，无网时按缓存授权做功能门禁，联网后再刷新校验。
 > 8. key 形态：**结构化 token**（带组织/用户前缀，如 `org.user.xxxx`）。
 > 9. 服务端技术栈：**Rust + Axum + SQLite**（独立仓库，与 carrier 同语言，便于复用依赖与部署经验）。
 > 10. 启动方式：**契约优先**（先定稿两端共享契约：API schema + token 字段 + 表结构，再并行实现）。
+>
+> 📌 **文档地位变更**：本文已**降为「企业契约附录」**。整体产品请以 **`QUANTDSH_PRODUCT_PLAN_FINAL.md`（终版 v1.3）** 为准；
+> 冲突时以后者为准。第 10 节的 SQLite DDL / token 形态 / 路由 / 客户端缓存 schema 仍是**实现契约的唯一来源**（终版 §3.3 为授权粒度终稿）。
+>
+> 📌 **v1.3 补充**：以下主题已上收至终版，本文对应内容不再维护——
+> **免费额度按币种切**（终版 §3.7）、**无 trial**（终版 §3.5.3）、**权益到期立即失效与席位失效语义**（终版 §3.5.1 / §3.5.2）、
+> **代码公开前提下的防破解与授权完整性**（终版 §3.8，含新增表 `revocations` / `key_devices` / `signing_keys` / `execution_tickets`）。
+> 实现时请对照终版 §4.3 / §4.4 的最新表结构与路由。
 
 ---
 
@@ -149,7 +157,7 @@
 | 3 | 组织粒度 | 用户在官网新建组织、加入人员；每人到平台申请 key；本地客户端用 key 登录 |
 | 4 | 管理 UI | 官网网页内，不在客户端 |
 | 5 | 本轮落点 | 客户端 + 服务端**一起交付** |
-| 6 | 服务端归属 | **新建独立服务**（独立仓库/技术栈），与现有 workdsh 后台解耦 |
+| 6 | 服务端归属 | **新建独立服务**（独立仓库/技术栈），与既有后台解耦 |
 | 7 | 离线强制 | **本地优先**，无网按缓存授权门禁，联网后刷新校验 |
 | 8 | key 形态 | **结构化 token**（带组织/用户前缀，如 `org.user.xxxx`） |
 | 9 | 服务端技术栈 | **Rust + Axum + SQLite**（独立仓库） |
@@ -171,6 +179,10 @@
 
 ### 10.2 SQLite 表结构（DDL 草案）
 
+> 📌 **本节 `feature_grants` 表已更新**：v1.1 起权益主体同时支持**个人订阅与团队订阅**，
+> 该表改为 `subject_type / subject_id`（`user` | `team`），并新增 `subscriptions`、`seats` 两表。
+> 最新定义见 **`QUANTDSH_PRODUCT_PLAN_FINAL.md` §4.3**（以终版为准）；其余五张表不变。
+
 ```sql
 PRAGMA foreign_keys = ON;
 
@@ -184,14 +196,17 @@ CREATE TABLE orgs (
 CREATE TABLE users (
   id           TEXT PRIMARY KEY,             -- qu_<uuid>
   org_id       TEXT NOT NULL REFERENCES orgs(id),
+                -- 【v1.2 单组织约束】一个用户只属于一个组织；org_id 为非空单值。
+                -- 由此 email 可全局唯一（不必再按 org 复合唯一）。若未来放开多组织，
+                -- 需新增 user_org_memberships 关联表并把客户端 entitlement.org 从标量改成列表。
   display_name TEXT NOT NULL,
-  email        TEXT NOT NULL,
-  password_hash TEXT NOT NULL,               -- argon2/bcrypt
+  email        TEXT NOT NULL UNIQUE,
+  password_hash TEXT,                        -- 后台 SSO 账号可为 NULL
   status       TEXT NOT NULL DEFAULT 'active', -- active|disabled
   role         TEXT NOT NULL DEFAULT 'member', -- owner|admin|member
-  created_at   INTEGER NOT NULL,
-  UNIQUE(org_id, email)
+  created_at   INTEGER NOT NULL
 );
+CREATE INDEX idx_users_org ON users(org_id);
 
 CREATE TABLE teams (
   id           TEXT PRIMARY KEY,             -- qt_<uuid>
