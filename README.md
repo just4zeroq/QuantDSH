@@ -29,14 +29,18 @@ QuantDSH 桌面客户端由两层组成：**Rust + Tauri v2 的载体（carrier�
 
 > **红线**：实盘凭据、交易所密钥、策略源码**绝不上传服务端**。服务端只持有身份与授权。
 
-### 内部标识（冻结）
+### 内部标识（现状：`workdsh`；v1.5 起全量改名）
 
-运行时契约沿用一组 `workdsh` 命名的内部标识：`workdsh://` scheme、`workdsh.localhost` host、
+当前代码里运行时标识仍是一组 `workdsh` 命名：`workdsh://` scheme、`workdsh.localhost` host、
 `workdsh-runtime` 资源目录、`workdsh-*` npm 包名、`runtime_pack::PRODUCT = "WorkDSH"`、
 `%APPDATA%\WorkDSH` 数据根、`WORKDSH_*` 环境变量。
 
-这些是**运行时契约**，改名即破坏 Profile 与既有用户数据，因此永久保留；它们**不是产品名**。
-产品名、安装包名、发布者、窗口标题、菜单文案一律 QuantDSH。
+**这些标识全量改名为 `quantdsh` / `QuantDSH` 已定案**（产品方案 §2.4），且**不考虑与旧版兼容、不写数据迁移**。
+依据：上游 `deepseek-harness` 全仓无 `workdsh` 标识（装配产物 `primary-runtime` 也 0 命中），
+因此改名只需改本仓库（carrier）与 Profile 源码两层，**不需要重建运行时**。
+
+执行方式与完整清单（22 项 carrier + 8 项 profile，含定义位置行号）见
+[`QUANTDSH_V1_IMPLEMENTATION.md`](QUANTDSH_V1_IMPLEMENTATION.md) §1。本 README 其余章节描述的是**改名前的现状**。
 
 ## 二、模块职责
 
