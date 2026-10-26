@@ -66,3 +66,19 @@ tauri-build = { version = "2.7.4", features = [] }
 codegen-units = 1
 lto = true
 strip = true
+
+# Debug builds only exist to smoke-test the carrier (see README). The defaults
+# are wasteful for that job: `debug = 2` emits a full PDB for every crate, and
+# on Windows the tauri/tokio/reqwest graph alone produces several gigabytes of
+# it. Line tables keep our own frames readable in a backtrace at a fraction of
+# the size, and the dependencies get no debug info at all.
+#
+# `incremental = false` trades a little wall-clock on repeat builds for the
+# per-CGU copy cargo keeps in `target/debug/incremental`, which is pure cost for
+# a from-scratch build and a large share of the tree on a full one.
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
+
+[profile.dev.package."*"]
+debug = false

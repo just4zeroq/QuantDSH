@@ -2007,6 +2007,37 @@ impl<R: Runtime> Carrier<R> {
             }
         }
         self.install_connection_menu();
+        // Debug-only shortcut for unattended smoke tests: the shipped app always
+        // opens the usage-mode picker, which no script can operate (the entry page
+        // is served by the `quantdsh://` protocol, not by the OS shell). Setting
+        // `QUANTDSH_DESKTOP_DEBUG_AUTOSTART=personal` walks the same personal path
+        // `quantdsh://personal` would, so a debug build can be exercised end to end.
+        // `debug_assertions` keeps this out of release builds entirely.
+        #[cfg(debug_assertions)]
+        if self.paths.runtime_problems.is_empty()
+            && std::env::var("QUANTDSH_DESKTOP_DEBUG_AUTOSTART").as_deref() == Ok("personal")
+        {
+            eprintln!("[quantdsh] debug autostart: entering the personal workspace");
+            self.show_connection_entry();
+            let this = Arc::clone(self);
+            tauri::async_runtime::spawn(async move {
+                let home = this.paths.dsh_home.clone();
+                let _ = this.show_loading("正在启动个人工作区");
+                match this.prepare_profile(&home).await {
+                    Ok((_profile, existing_home)) => {
+                        this.entry_surface.store(false, Ordering::SeqCst);
+                        if let Err(error) = this
+                            .start_runtime(&home, DesktopConnection::Personal, &[], existing_home)
+                            .await
+                        {
+                            this.error_box("无法启动个人工作区", &error);
+                        }
+                    }
+                    Err(error) => this.error_box("无法准备工作区", &error),
+                }
+            });
+            return;
+        }
         // Fail closed exactly like the Electron carrier — no host process is ever
         // started against a partial tree — but with a surface that can repair it.
         if self.paths.runtime_problems.is_empty() {

@@ -126,6 +126,54 @@ npm run release:mac-x64    # macOS Intel
 
 `--source <dir>` 或 `QUANTDSH_SOURCE` 可覆盖 Profile 源位置（默认值见上一节）。
 
+### 4.1 本地 debug 构建（只做冒烟测试）
+
+```sh
+npx tauri build --debug --no-bundle     # 只出 exe，不产安装包
+```
+
+产物是 `src-tauri/target/debug/QuantDSH.exe`。**不要给它设 `CARGO_TARGET_DIR`**：target 落在仓库内
+（`.gitignore` 已忽略 `src-tauri/target/`），构建产物跟着仓库走，不占系统盘。磁盘预算约 3 GB，
+其中 0.88 GB 是 Tauri 把 `build/quantdsh-runtime` 原样复制进 `target/debug/` 的那份资源（复制是必需的，
+它让 debug 版能脱离仓库目录独立运行）。
+
+`src-tauri/Cargo.toml` 的 `[profile.dev]` 按「只用于冒烟测试」调过：
+
+| 设置 | 值 | 原因 |
+|---|---|---|
+| `debug` | `"line-tables-only"` | 默认 `2` 会给整棵 tauri/tokio/reqwest 依赖树各出一份完整 PDB，是 debug 目录膨胀的主因；行表保留栈回溯可读性 |
+| `[profile.dev.package."*"].debug` | `false` | 依赖的调试信息对冒烟测试没有价值 |
+| `incremental` | `false` | 省掉 `target/debug/incremental` 里每个 CGU 的副本；从零构建时它只花磁盘不省时间 |
+
+实测：`target` 共 **2.56 GB**，其中 `deps` 1.31 GB、复制的 runtime 0.88 GB、`build` 0.31 GB，
+主 crate 的 `QuantDSH.pdb` 只有 **36.5 MB**，exe 25.5 MB，`incremental` 为空。全量构建约 6 分钟。
+
+启动后默认停在入口页，需要手动点「个人使用」。无人值守测试用 debug-only 开关
+（`debug_assertions` 门控，发布版完全不读）：
+
+```powershell
+$env:QUANTDSH_DESKTOP_USER_DATA='D:\tmp\qdsmoke'    # 隔离数据目录，不碰真实配置
+$env:QUANTDSH_DESKTOP_DEBUG_AUTOSTART='personal'    # 走与 quantdsh://personal 相同的路径
+.\src-tauri\target\debug\QuantDSH.exe
+```
+
+首次进入要装 Profile 依赖，**约 60–120 秒才监听 `127.0.0.1:3080`**；这段时间 host 进程已在跑但端口没开，
+容易被误判成启动失败。冒烟判据是：窗口标题 `QuantDSH`、host 为 carrier 的子进程、3080 返回 401（正常鉴权）。
+
+> **窗口显示「请检查企业地址、网络或者本地运行状态」时先别怀疑网络。** 这个页面是 `page.loadURL()`
+> 在 30 秒内没等到加载完成后的回滚（`window-2 never loaded`）。最常见的原因是上一次调试把进程
+> 强杀了，WebView2 的缓存目录被弄脏，重页面（工作区首屏要载入几十个插件 client.js）在冷缓存上
+> 加载超过 30 秒。清掉缓存目录再启动即可：
+>
+> ```powershell
+> # 关掉所有 QuantDSH 与 host 进程后
+> Remove-Item -Recurse "$env:LOCALAPPDATA\io.quantdsh.dsh.ssh\EBWebView"
+> ```
+>
+> 排查顺序：先确认 `Get-NetTCPConnection -LocalPort 3080` 在监听、`curl http://127.0.0.1:3080/` 返回
+> 401（未鉴权是正常的）、`http://127.0.0.1:3080/?token=…` 返回 200 的 HTML —— host 健康的话问题就在
+> WebView2 侧，不在网络也不在构建。
+
 `scripts/release.mjs` 的九步：
 
 1. `prepare-deployment-config.mjs` — 生成 `build/deployment/quantdsh-config.json`
