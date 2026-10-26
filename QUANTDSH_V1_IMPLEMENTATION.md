@@ -43,6 +43,15 @@
 
 ## 1. 改名执行清单
 
+> **执行状态（2026-10-26）：L1 已完成。** 44 个文件改完，`cargo check` 通过、
+> `cargo test` **40 项全通过**（与改名前基线一致）。`build\quantdsh-runtime` 与
+> `profiles\quantdsh` 构建产物目录已同步改名。L2（profile）**尚未开始** —— 需先把
+> `D:\code\github\workdsh` fork 进本仓库，见 §1.3 与 §9。
+>
+> **实测补充**：一次性全仓替换会连 Profile 侧的包名、服务键一起改掉，编译不报错但运行时
+> 插件全加载不到。实际执行时用「保护清单 + 替换」两步：先遮住
+> `workdsh-provider-*/plugin-*/contracts/ui/bundle`、cordis id、服务键、插槽名，再替换其余。
+
 ### 1.1 三层归属
 
 调查结论（`deepseek-harness` 全仓 `workdsh` **0 命中**，含装配好的 `primary-runtime`）：
@@ -82,20 +91,20 @@
 | 21 | 临时目录前缀 | `workdsh-runtime-pack-*` / `workdsh-launcher-*` | `quantdsh-*` | `runtime_pack.rs:698`、`local_runtime.rs:730` | 仅美观，顺手改 |
 | 22 | 文案与注释 | 残留 `WorkDSH` | `QuantDSH` | 各文件头注释、错误消息、README | 不含契约标识的注释才改 |
 
-**实施建议（重要）**：不要直接全仓 sed。先做一步**常量收敛**——新建 `src-tauri/src/brand.rs`：
+**实际执行方式（与计划的偏差，据实记录）**：原计划先建 `src-tauri/src/brand.rs` 收口常量再改值。
+执行时判断**不值得**，改为「**保护清单 + 两步替换**」，理由：
 
-```rust
-pub const PRODUCT: &str = "QuantDSH";
-pub const SCHEME: &str = "quantdsh";
-pub const HOST: &str = "quantdsh.localhost";
-pub const PROFILE_NAME: &str = "quantdsh";
-pub const RUNTIME_DIR: &str = "quantdsh-runtime";
-pub const CONFIG_FILE: &str = "quantdsh-config.json";
-pub const USER_DATA_DIRNAME: &str = "QuantDSH";
-pub const ENV_PREFIX: &str = "QUANTDSH";
-```
+- 530 处里绝大多数是**一次性**的（改名后这段代码不会再被改），收口成常量只是把字面量换个地方放，
+  收益只有"将来再换品牌"这一种情形——而那时 L2 profile 也要一起改，常量帮不上。
+- 真正的风险不是"漏改"（漏改会编译报错或测试失败），而是**误伤 Profile 侧面名字**
+  （`workdsh-plugin-*` / 服务键 / 插槽名），那类错误**编译期发现不了**，只在运行时表现为插件加载不到。
+- 所以流程改成：① 先用占位符遮住保护清单 ② 再替换其余全部 ③ 还原占位符 ④ `cargo test` 兜底。
+  脚本与保护清单可复用于 L2。
 
-把所有字面量替换成引用（此时代码行为不变，可跑 `cargo test` 验证），再一次性改常量值。这样"改名"变成一次改动而不是 530 次，且以后换品牌只改一个文件。
+**保留的常量**：`paths::PROFILE_NAME` 仍是唯一的 profile 名来源；`runtime_pack::PRODUCT` 仍参与
+离线包 `manifest.product` 校验。这两处是有跨文件语义的，不能退化成散落字面量。
+
+> 如果将来确实要再换品牌，`brand.rs` 仍然值得做——但不是现在，现在做只会把已验证的改动再动一遍。
 
 ### 1.3 L2 profile 改动表
 
@@ -474,7 +483,35 @@ v1 只做**本地仿真**，不接实盘（实盘需要服务端票据 + 券商�
 
 **为什么不能靠 DSH 的 jobs**：`jobs` 是进程内、不跨重启、无重试；`schedule` 有 cron 但无执行状态机。因子挖掘一轮几十分钟，必须能断点续跑。所以**任务状态机自己写，DSH 只当启动器**。
 
-### 6.2 闭环状态机
+### 6.1.1 两条路径：工厂先做，演化在其上
+
+| | **路径 A · 因子工厂** | **路径 B · LLM 演化** |
+|---|---|---|
+| 驱动 | 枚举：算子 × 窗口 × 二元组合 | LLM 提假设 |
+| 确定性 | 完全确定，同输入同输出 | 依赖模型与温度 |
+| 成本 | 纯算力 | 算力 + token |
+| 断点续跑 | 天然可分片（每片独立表达式） | 依赖 Trace DAG |
+| 实现量 | 小（无 LLM 调用、无 prompt 工程） | 大 |
+| **顺序** | **v1 先做** | 工厂跑通后再做 |
+
+工厂的确定性让它成为 v1 唯一可测的挖掘路径：给定字段集与算子集，输出必然可复现，能写单元测试。
+演化路径的正确性依赖 LLM，只能靠 Trace DAG 与预算护栏兜底。
+
+**工厂规格**
+
+- 字段来源：silver 层的**富化特征白名单**（见 §4.2）
+- 时序算子：`ts_rank / ts_std / roc / zscore / delta / decay / slope`
+- 截面算子：`cs_rank / cs_zscore`
+- 二元算子：`cs_diff / cs_ratio / ts_corr`
+- 窗口：`5 / 10 / 20 / 60`
+- 组合上限：单次 ≤ 2 万表达式（超出按优先级分片，仍是同一个 run）
+- 筛选：IC/ICIR 排序 → 相关性去重 → top-n
+- **去重阈值 0.85**（区别于演化路径的 0.7）：工厂产出密度高，需要更松的去重以保留多样性
+
+**为什么不用 qlib**：RD-Agent 与 QuantMind 都跑在 qlib 上（要 pandas + Python）。我们的数据湖
+本身就是 DuckDB，IC 与分组收益用窗口函数直接算——**少一层数据搬运，也少一个 Python 依赖**。
+
+### 6.2 路径 B · 闭环状态机
 
 ```
         ┌──────────────────────────────────────────────────┐
@@ -493,8 +530,8 @@ v1 只做**本地仿真**，不接实盘（实盘需要服务端票据 + 券商�
 | `validate` | `expr` | 通过/拒绝 + 原因 | 拒绝即丢弃，记录原因供后续 prompt 参考 |
 | `materialize` | 通过的 `expr` | `factors` 行 + `factor_values` parquet | 计算超时 → 标记 `timeout`，不计入预算外重试 |
 | `evaluate` | 因子值 + silver 数据 | `factor_eval` 行（IC/ICIR/换手/覆盖度） | 覆盖率 < 60% 直接淘汰 |
-| `dedupe` | 新因子 + 已有因子 | 保留/淘汰 | 与任一已有因子 `|corr| > 0.7` → 淘汰 |
-| `select` | 评估结果 | 入因子库 / 进变异池 | `|ICIR| < 0.3` 或 IC 不稳定（分段符号翻转）→ 淘汰 |
+| `dedupe` | 新因子 + 已有因子 | 保留/淘汰 | 与任一已有因子 `\|corr\| > 0.7` → 淘汰 |
+| `select` | 评估结果 | 入因子库 / 进变异池 | `\|ICIR\| < 0.3` 或 IC 不稳定（分段符号翻转）→ 淘汰 |
 | `mutate` | 入变异池的因子 | 新候选（参数扰动 / 算子替换） | 变异代数 ≤ 3，防止退化成随机搜索 |
 
 ### 6.3 任务持久化（`jobs.sqlite`）
@@ -528,6 +565,32 @@ CREATE TABLE mining_tasks (
 
 断点续跑：进程重启后扫描 `state='running'` 的任务，超过 `timeout` 的置回 `pending`（`attempts+1`），`attempts > 3` 置 `failed`。
 
+**演化谱系（Trace DAG）单独一张表** —— 这不是日志，是「变异从哪儿来」的唯一事实来源：
+
+```sql
+CREATE TABLE mining_nodes (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  parent_id TEXT,                 -- NULL = 本轮种子；变异必须继承父节点的 data_version 与 universe
+  round INTEGER NOT NULL,
+  hypothesis TEXT,                -- LLM 给的假设（工厂路径为 NULL）
+  expr TEXT NOT NULL,
+  metrics_json TEXT,              -- ic / icir / turnover / coverage / 分段 IC
+  decision TEXT NOT NULL,         -- kept | dropped_dup | dropped_unstable | dropped_budget | failed
+  reason TEXT,
+  data_version INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_nodes_parent ON mining_nodes(parent_id);
+CREATE INDEX idx_nodes_run ON mining_nodes(run_id, round);
+```
+
+三条硬约束，缺一条「演化」就退化成「随机重采」：
+
+1. `mutate` 产出的节点**必须**带 `parent_id`，且 `data_version` 与父节点一致（父节点数据变了要先重算父节点）。
+2. `decision` 与 `reason` 必填，被淘汰的也要入库 —— 不然算不出真实尝试次数 `N`，deflated Sharpe 就失去意义。
+3. 查询「本轮最优」时沿 DAG 聚合，不能只看最后一轮 —— 好因子常出现在中间轮。
+
 ### 6.4 防自欺（这部分比算法更重要）
 
 | 措施 | 具体做法 | 不做的后果 |
@@ -535,16 +598,22 @@ CREATE TABLE mining_tasks (
 | Walk-forward 分段 | 把窗口切成 3 段（训/验/测），只在训段做选择，报告验段与测段结果 | 全样本择优 = 过拟合，报告好看但实盘必崩 |
 | 多重检验惩罚 | 用 deflated Sharpe ratio：按"尝试过的候选数 N"调整显著性阈值 | 试 1000 个因子，总有几个显著——纯随机 |
 | 候选池上限 | 每轮 ≤ 50 个候选，总预算 ≤ 200 个/天 | 算力烧完，产出全是垃圾 |
-| 相关性去重 | 与已有因子 `|corr| > 0.7` 淘汰 | 因子库被同一信号的变体淹没 |
+| 相关性去重 | 与已有因子 `\|corr\| > 0.7` 淘汰 | 因子库被同一信号的变体淹没 |
 | PIT universe | 按 `listed_at/delisted_at` 过滤 | 幸存者偏差，回测虚高 |
 | 稳定性检查 | 分段 IC 符号必须一致，否则淘汰 | 单段表现好、跨段翻转的因子不可用 |
 | 记录完整历史 | 所有候选（含被淘汰的）入库，不删 | 无法复盘"为什么这个想法失败"，也无法算真实 N |
 
 ### 6.5 LLM 的角色（重要边界）
 
-LLM **只做两件事**：提假设（生成 `expr` 候选）、解释结果（把 IC 报表翻译成人话）。
+LLM **做三件事**：提假设（生成 `expr` 候选）、解释结果（把 IC 报表翻译成人话）、**建议下一步方向**（沿哪条分支扩展 / 改哪个参数 / 放弃这条线）。
 
 LLM **不参与**：因子打分、去重判定、是否入选的决策。原因：这些必须是确定性的、可复现的、可审计的。同一个数据跑两次必须得到同一结论，LLM 做不到。
+
+**为什么允许它在「方向」上参与**：入选是资产决策（进了因子库就要被策略引用、要能被审计），方向只是搜索策略（选错了浪费一点算力）。两者代价差两个量级，标准不该一样。
+
+RD-Agent 让 LLM 连反馈判定一起做（`summarizer.generate_feedback`），我们没有照搬。原因同上：它的反馈直接决定该分支是否继续，等于参与入选。
+
+**三处人工介入点（HITL）**：初始参数（universe / 区间 / 方向）、假设确认（这条线挖不挖）、放弃确认（LLM 建议放弃时人是否同意）。挖掘跑几十分钟，不能全程无人值守也不能全程盯着——默认在「一轮结束」时暂停等确认，可配置为全自动。
 
 宿主方式：写成 `SKILL.md`（挖掘口径 + 好因子的判据 + 反面例子），agent 通过 tool 调用 `quantdsh_factor_propose` / `quantdsh_factor_evaluate`，把候选与结果读回来做下一轮对话式迭代。真正的批处理由引擎跑，agent 不参与中间计算。
 
@@ -620,8 +689,8 @@ profile/packages/quantdsh-plugin-quant/
 
 ### P0 · 骨架（先能跑通一条链路）
 
-1. 常量收敛 + L1 改名全部完成，`cargo test` 全绿
-2. profile fork 进 `profile/`，包名改完，能打出可运行的包
+1. ~~常量收敛 + L1 改名全部完成，`cargo test` 全绿~~ ✅ **已完成**（44 文件，40 项测试全通过）
+2. profile fork 进 `profile/`，包名改完，能打出可运行的包 ← **当前**
 3. 引擎 sidecar：`qd-core` + `qd-api` + `qd-store`，能启动、能被插件调通（`/health`）
 4. carrier 拉起引擎 + token 传递 + 退出清理
 5. 插件：`quantdsh_data_sync` 一个 tool 打通（Binance 单 symbol 日线 → Parquet → 查询返回）

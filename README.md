@@ -29,25 +29,36 @@ QuantDSH 桌面客户端由两层组成：**Rust + Tauri v2 的载体（carrier�
 
 > **红线**：实盘凭据、交易所密钥、策略源码**绝不上传服务端**。服务端只持有身份与授权。
 
-### 内部标识（现状：`workdsh`；v1.5 起全量改名）
+### 内部标识（已全量改为 `quantdsh`）
 
-当前代码里运行时标识仍是一组 `workdsh` 命名：`workdsh://` scheme、`workdsh.localhost` host、
-`workdsh-runtime` 资源目录、`workdsh-*` npm 包名、`runtime_pack::PRODUCT = "WorkDSH"`、
-`%APPDATA%\WorkDSH` 数据根、`WORKDSH_*` 环境变量。
+运行时标识已全部改为 `quantdsh` / `QuantDSH`：`quantdsh://` scheme、`quantdsh.localhost` host、
+`quantdsh-runtime` 资源目录、`runtime_pack::PRODUCT = "QuantDSH"`、`%APPDATA%\QuantDSH` 数据根、
+`QUANTDSH_*` 环境变量、`profiles\quantdsh` profile 名、`quantdsh-config.json` 部署配置。
 
-**这些标识全量改名为 `quantdsh` / `QuantDSH` 已定案**（产品方案 §2.4），且**不考虑与旧版兼容、不写数据迁移**。
-依据：上游 `deepseek-harness` 全仓无 `workdsh` 标识（装配产物 `primary-runtime` 也 0 命中），
-因此改名只需改本仓库（carrier）与 Profile 源码两层，**不需要重建运行时**。
+改名**不考虑与旧版兼容，不写数据迁移**：旧数据目录、旧状态文件、旧环境变量、旧分区 cookie 一律不再读取，
+相应的兼容分支已直接删除。依据：上游 `deepseek-harness` 全仓无 `quantdsh` 标识（装配产物
+`primary-runtime` 也 0 命中），所以只需改本仓库（carrier），**不需要重建运行时**。
 
-执行方式与完整清单（22 项 carrier + 8 项 profile，含定义位置行号）见
-[`QUANTDSH_V1_IMPLEMENTATION.md`](QUANTDSH_V1_IMPLEMENTATION.md) §1。本 README 其余章节描述的是**改名前的现状**。
+改名后 `cargo test` 40 项全通过，与改名前的基线一致。
+
+### 仍是 `workdsh` 的地方（有意保留）
+
+Profile 侧的 **npm 包名、cordis 插件 id、服务键与插槽名**保持原样：
+
+- 自有包名 `workdsh-contracts` / `workdsh-ui` / `workdsh-bundle` / `workdsh-plugin-*` / `workdsh-provider-*`
+- cordis 插件 id `workdsh-identity-local`、`workdsh-session-access`、`workdsh-tool-access`、`workdsh-workbenches` 等
+- 服务键 `workdshConnectors` / `workdshExperts` / `workdshIdentity` / `workdshAccess` 等
+- 插槽名 `workdsh.workbench.frame`
+
+它们定义在 Profile 源码里（另一个仓库），carrier 只按名字引用。**carrier 单方面改名会导致
+打包成功、启动后插件全部加载不到**，所以这一层随 Profile fork 进本仓库时一并改。
 
 ## 二、模块职责
 
 | 模块 | 职责 |
 | --- | --- |
 | `app.rs` | 全局状态机（`runtime`/`window`/`quitting`/`switching`/`quitRequested`/`returnRequested`/`installer`/`enterpriseWindows`/`verifyTimer`）、`openWindow`、`runtimeEnvironment`、`startRuntime`、`stopRuntime`、`leaveWorkspace`、`returnToEntry`、`endSwitch`、`activateEnterprise`、登录 IPC、菜单 |
-| `paths.rs` | `WORKDSH_*` 环境变量覆盖、`userData/dsh-home`、`workdsh-runtime` 布局解析 |
+| `paths.rs` | `QUANTDSH_*` 环境变量覆盖、`userData/dsh-home`、`quantdsh-runtime` 布局解析 |
 | `connection.rs` | `DesktopConnection`、portal 校验、渲染进程分区标识 |
 | `deployment_config.rs` | 管理员部署配置校验 |
 | `enterprise_auth.rs` | key 登录 / `verify` / `cancelRequests` / `logout`，15s 超时、常量时间比对的 loopback authority（Bearer key、`/logout`、`/invalid`） |
@@ -62,20 +73,20 @@ QuantDSH 桌面客户端由两层组成：**Rust + Tauri v2 的载体（carrier�
 | `plugin_archive_cache.rs` | 插件归档缓存 |
 | `command_management.rs` | 「终端命令 dsh（可选）」的检查 / 安装 / 移除 |
 | `pages.rs` | 载体页 HTML（入口 / 登录 / 加载）+ 等价 preload 的 init script；运行时修复页 |
-| `browser_worker.rs` | `--workdsh-browser-worker-port/profile` 离屏 worker（Windows 走 CDP `--remote-debugging-address=127.0.0.1 --remote-debugging-port`） |
-| `runtime-cli/command-cli.mjs` | 已安装的 `dsh` 命令读取 `command-context.json`，解析 `--workdsh-space=`，在选定空间里拉起官方 CLI |
+| `browser_worker.rs` | `--quantdsh-browser-worker-port/profile` 离屏 worker（Windows 走 CDP `--remote-debugging-address=127.0.0.1 --remote-debugging-port`） |
+| `runtime-cli/command-cli.mjs` | 已安装的 `dsh` 命令读取 `command-context.json`，解析 `--quantdsh-space=`，在选定空间里拉起官方 CLI |
 
 ### 渲染进程的 IPC 面
 
-- 载体窗口（入口 / 登录 / 加载）：只有两个命令 `workdsh_navigate`、`workdsh_enterprise_login`，
-  即唯一一条 preload 面；页面里的 `workdsh://personal|enterprise|entry` 点击/表单提交被
+- 载体窗口（入口 / 登录 / 加载）：只有两个命令 `quantdsh_navigate`、`quantdsh_enterprise_login`，
+  即唯一一条 preload 面；页面里的 `quantdsh://personal|enterprise|entry` 点击/表单提交被
   init script 拦截后走这两个命令。
 - 运行时窗口（DSH 自己的页面）：**不注入任何 preload、不注册应用命令 ACL**，
   因此页面拿不到可用的 IPC —— 运行时页面与载体页严格隔离。
 
 ## 三、启动时序
 
-1. `run()` 先解析 `--workdsh-browser-worker-*`：命中则进入离屏 worker 分支并结束。
+1. `run()` 先解析 `--quantdsh-browser-worker-*`：命中则进入离屏 worker 分支并结束。
 2. 主分支先注册单实例插件（`--dsh-installer-quit` 走有序退出）。
 3. `start()`：读部署配置 → 读上次企业后台 → 安装菜单 → `showConnectionEntry()`。
 4. 「个人使用」（或已存 key 的自动登录）：`showLoading` → `prepareProfile`（Profile 物化 + 依赖更新）→ `startRuntime`。
@@ -91,12 +102,12 @@ QuantDSH 桌面客户端由两层组成：**Rust + Tauri v2 的载体（carrier�
 1. Rust 工具链；Windows 上首次构建会自动下载 NSIS。
 2. 本目录 `npm install` —— 提供 `@tauri-apps/cli`、`7zip-bin`（解包官方产物用的
    `7za.exe`）、`sharp`、`js-yaml`。
-3. **Profile 源目录先构建出自有的 13 个包**。`pack-workdsh-profile.mjs` 读的是 Profile 源下的
+3. **Profile 源目录先构建出自有的 13 个包**。`pack-quantdsh-profile.mjs` 读的是 Profile 源下的
    `apps/web`：只有它的 `package.json` 钉着 `@deepseek-ai/dsh` 版本，也只有它装了 `pnpm`；
    它的 `PACKAGE_DIRECTORIES` 用 `../../packages/...`，正好落在 Profile 源的 `packages/`。
    仓库根不满足这些条件，传根目录会直接抛 `Usage:` 或版本断言。
    ```sh
-   cd <profile-source>            # 默认 ../workdsh，可用 --source / WORKDSH_SOURCE 覆盖
+   cd <profile-source>            # 默认 ../workdsh，可用 --source / QUANTDSH_SOURCE 覆盖
    corepack yarn install --immutable
    corepack pnpm --dir apps/web install --frozen-lockfile
    corepack pnpm --dir apps/web build
@@ -104,7 +115,7 @@ QuantDSH 桌面客户端由两层组成：**Rust + Tauri v2 的载体（carrier�
 
 首次发布还会下载锁定的官方 Desktop 产物（`upstream.json`：win-x64 为
 289,385,456 B，SHA-512 校验），解出 Node/pnpm/Python/office-skills 约 257 MB，
-缓存在 `build/official-release-cache/`，之后复用；`build/workdsh-runtime` 约 900 MB。
+缓存在 `build/official-release-cache/`，之后复用；`build/quantdsh-runtime` 约 900 MB。
 
 ```sh
 npm run release:win        # Windows x64：全链路 + 打包 + 校验
@@ -112,18 +123,18 @@ npm run release:mac-arm    # macOS Apple Silicon
 npm run release:mac-x64    # macOS Intel
 ```
 
-`--source <dir>` 或 `WORKDSH_SOURCE` 可覆盖 Profile 源位置（默认值见上一节）。
+`--source <dir>` 或 `QUANTDSH_SOURCE` 可覆盖 Profile 源位置（默认值见上一节）。
 
 `scripts/release.mjs` 的九步：
 
-1. `prepare-deployment-config.mjs` — 生成 `build/deployment/workdsh-config.json`
-2. `pack-workdsh-profile.mjs <apps/web> <candidate>` — 把自有插件打成不可变 tgz。
-   候选目录用时间戳命名（`build/workdsh-profile-release-<毫秒>/`），因为该脚本拒绝
+1. `prepare-deployment-config.mjs` — 生成 `build/deployment/quantdsh-config.json`
+2. `pack-quantdsh-profile.mjs <apps/web> <candidate>` — 把自有插件打成不可变 tgz。
+   候选目录用时间戳命名（`build/quantdsh-profile-release-<毫秒>/`），因为该脚本拒绝
    覆盖已存在的候选；固定路径会让同一份代码的第二次发版失败。
-3. `prepare-workdsh-runtime.mjs` — 合成并校验可移植 runtime Profile（并清掉
+3. `prepare-quantdsh-runtime.mjs` — 合成并校验可移植 runtime Profile（并清掉
    `node_modules/**/*.pdb`，因为 `bundle.resources` 没有 filter 语义）
-4. `prepare-workdsh-primary-runtime.mjs` — 挂载锁定的 Node/pnpm/Python
-5. `prepare-workdsh-command.mjs` — 内置命令管理器与 `dsh` 命令
+4. `prepare-quantdsh-primary-runtime.mjs` — 挂载锁定的 Node/pnpm/Python
+5. `prepare-quantdsh-command.mjs` — 内置命令管理器与 `dsh` 命令
 6. `generate-icons.mjs` — 从品牌图生成 Tauri 图标集
 7. `make-runtime-pack.mjs` — 把同一份 runtime 打成**离线修复包**
    `build/packages/runtime-<ver>-<target>.tar.gz` + `.sha256`（详见第七节）
@@ -161,7 +172,7 @@ node scripts/verify-packaged.mjs --installer <安装包>   # 或 --root <解包�
 
 安装器退出握手的回归方式：启动主实例 → 用 `--dsh-installer-quit` 启动第二个实例 →
 断言第二实例退出码 0、主实例停止、运行标记被清理。隔离开关是
-`WORKDSH_DESKTOP_USER_DATA` 与 `WORKDSH_DSH_HOME`。
+`QUANTDSH_DESKTOP_USER_DATA` 与 `QUANTDSH_DSH_HOME`。
 
 ## 七、运行时缺失与自愈
 
@@ -172,16 +183,16 @@ node scripts/verify-packaged.mjs --installer <安装包>   # 或 --root <解包�
 
 | 顺序 | 来源 | 说明 |
 | -- | --- | --- |
-| 1 | `WORKDSH_RUNTIME_DIR` | 管理员显式指定；不完整时**直接失败**，不悄悄回落到别处 |
-| 2 | `<resources>/workdsh-runtime` | 安装包内置；完整时按内置布局启动 |
+| 1 | `QUANTDSH_RUNTIME_DIR` | 管理员显式指定；不完整时**直接失败**，不悄悄回落到别处 |
+| 2 | `<resources>/quantdsh-runtime` | 安装包内置；完整时按内置布局启动 |
 | 3 | `<userData>/runtime/current.json` → `versions/<sha256>` | 导入的离线包 |
-| 4 | 都没有 | 打开修复页 `workdsh://localhost/runtime`，**不启动** Host |
+| 4 | 都没有 | 打开修复页 `quantdsh://localhost/runtime`，**不启动** Host |
 
 校验只做存在性 + 平台/架构 + 官方启动器需要的九个文件（`officialHostLauncher` 会解引用的
 那几项），不哈希——每次启动都跑，289MB 不能重算。
 
 修复页三个动作：**导入运行时离线包** / 打开下载页（配置了
-`WORKDSH_RUNTIME_DOWNLOAD_URL` 时才有）/ 退出。导入成功后立即重启进程
+`QUANTDSH_RUNTIME_DOWNLOAD_URL` 时才有）/ 退出。导入成功后立即重启进程
 （`AppHandle::restart`），让新的 runtime 根目录在全新进程里重新解析，而不是在活的进程树
 下面热替换运行时。
 
@@ -190,7 +201,7 @@ node scripts/verify-packaged.mjs --installer <安装包>   # 或 --root <解包�
 ```
 manifest.json      # protocol / product / version / target / runtime + 逐文件 size & sha256
 primary-runtime/…  # Node 24.21.0 · pnpm 11.28.5 · Python 3.12.14
-profiles/workdsh/…
+profiles/quantdsh/…
 ```
 
 导入（`import_archive`）严格按顺序进行：
@@ -250,7 +261,7 @@ Python 侧 `numpy` 锁 2.3.5。而且版本号相同 ≠ 行为相同：nvm 的 
 dsh-tauri/
   scripts/                      # 发布链（1–9 步）与各项 verify 脚本
   build/deployment/             # 部署配置（管理员可定制）
-  build/workdsh-runtime/        # 打进安装包的 runtime（由第 3–5 步生成）
+  build/quantdsh-runtime/        # 打进安装包的 runtime（由第 3–5 步生成）
   build/packages/               # 第 7 步产出的离线修复包（tar.gz + sha256）
   assets/                       # 品牌图标（app-icon、tray 图标源）
   dist/index.html               # Tauri frontendDist 占位（应用自绘所有页面）
@@ -268,16 +279,16 @@ dsh-tauri/
 - **首次发布为什么慢、为什么占空间**：要下载锁定的官方 Desktop 产物（289 MB）并按
   SHA-512 校验、从 npm 装出 862 个包的 Profile、gzip 出约 900 MB 的离线修复包，最后才
   编译 Rust 并压 NSIS。官方产物缓存在 `build/official-release-cache/`（含 `receipt.json`），
-  第二次发布直接复用；`build/workdsh-runtime` 约 900 MB。
-- **`npx tauri build` 报缺少 `workdsh-runtime`**：先跑 1–5 步（或 `npm run pack:runtime`）。
-  构建脚本要求 `build/workdsh-runtime` 与 `build/deployment/workdsh-config.json` 存在。
+  第二次发布直接复用；`build/quantdsh-runtime` 约 900 MB。
+- **`npx tauri build` 报缺少 `quantdsh-runtime`**：先跑 1–5 步（或 `npm run pack:runtime`）。
+  构建脚本要求 `build/quantdsh-runtime` 与 `build/deployment/quantdsh-config.json` 存在。
 - **启动后只看到「本机运行时不可用」**：内置 runtime 被删 / 被安全软件清理 / 解压不完整。
   点「导入运行时离线包」，选发布链产出的 `runtime-<ver>-<target>.tar.gz`；导入成功后自动重启。
-  企业可以把它铺到任意目录并设 `WORKDSH_RUNTIME_DIR`，或用
-  `WORKDSH_RUNTIME_DOWNLOAD_URL` 配一个内网下载页。
-- **离线包导入报「另一个安装进程正在写入运行时」**：说明 `%APPDATA%\WorkDSH\runtime\install.lock`
+  企业可以把它铺到任意目录并设 `QUANTDSH_RUNTIME_DIR`，或用
+  `QUANTDSH_RUNTIME_DOWNLOAD_URL` 配一个内网下载页。
+- **离线包导入报「另一个安装进程正在写入运行时」**：说明 `%APPDATA%\QuantDSH\runtime\install.lock`
   还在（上次安装被强杀）。确认没有安装在进行后删掉它，重试即可。
-- **`WORKDSH_DESKTOP_USER_DATA` / `WORKDSH_DSH_HOME`**：分别为用户数据目录与 DSH Home 的
+- **`QUANTDSH_DESKTOP_USER_DATA` / `QUANTDSH_DSH_HOME`**：分别为用户数据目录与 DSH Home 的
   覆盖点，便于测试与并排安装。
 - **企业登录不可用**：入口页会禁用按钮，因为 `workdsh-provider-identity-enterprise`
   未装在该 Profile 里。
@@ -288,4 +299,4 @@ dsh-tauri/
   `visible(false)` 建窗口再等加载完显示（原因见第九节）。本实现在
   `WebviewWindowBuilder::build()` 之后立刻 `show()`（背景色已是 `#111113`，不会白闪），
   「加载完成」只用来销毁上一个窗口。验证时看 stderr 的
-  `[workdsh] window <label> ready at <url>`——它只在首帧打印一次。
+  `[quantdsh] window <label> ready at <url>`——它只在首帧打印一次。

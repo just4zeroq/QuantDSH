@@ -1,8 +1,18 @@
 # QuantDSH 产品方案（终版）
 
-> **版本**：FINAL **v1.5** · 2026-10-26
+> **版本**：FINAL **v1.6** · 2026-10-26
 > **地位**：本文档是 QuantDSH **整体产品的单一事实来源**。原「企业契约附录」（`QUANTDSH_ENTERPRISE_PLAN.md`）与「功能模块附录」（`QUANTDSH_QUANT_PLAN.md`）已**全文并入**本文，两份文件已删除。
 > **配套文档**：`QUANTDSH_V1_IMPLEMENTATION.md` 是本文的实现层配套（改名清单、引擎架构、数据层、因子挖掘状态机）。本文说"做什么"，配套文档说"怎么做、按什么顺序、哪里留缝"。
+>
+> ### v1.6 变更（第六轮：改名落地 + 按 RD-Agent 核对补全）
+> | # | 议题 | 结论 | 影响面 |
+> |---|---|---|---|
+> | A | **改名执行** | carrier 层 **44 个文件已改完**，`cargo check` 通过、`cargo test` **40 项全通过**（与基线一致）。Profile 侧包名/插件 id/服务键/插槽名**有意保留**，随 profile fork 一并改（单方面改会「打包成功但插件全加载不到」） | §2.4 |
+> | B | **自动挖掘漏了一条路径** | 补**因子工厂**（算子 × 窗口 × 二元组合枚举，纯计算无 LLM），**v1 先做这条**，LLM 演化放在其之上做方向引导 | §6.2 / §6.2.1 |
+> | C | **演化机制缺三件** | 补 **Trace DAG**（不是日志，变异必须继承父节点）、**HITL 三处介入点**、**算力预检与降级** | §6.2 / §6.2.1 |
+> | D | **数据面决定因子空间** | 补**富化特征白名单**（预计算指标以固定列名暴露给因子表达式），数据层设计时就要定下来 | §6.1 |
+> | E | **LLM 是否参与判定** | 折中：**入选只看指标**（可审计、可复现），**方向决策可由 LLM 参与**（搜索策略，判错代价低） | §6.2.1 / §12.0 Q10 |
+> | F | **市场差异要抽象** | 补 `MarketAdapter`（universe / 交易日历 / 涨跌停 / 整手 / T+1 / 年化天数 / 费率模型 / 复权）：crypto 365 天、无涨跌停、无复权、比例费率 | §6.1 |
 >
 > ### v1.5 变更（第五轮拍板：改名 + 服务端延后 + v1 技术决议）
 > | # | 议题 | 结论 | 影响面 |
@@ -207,27 +217,41 @@
 > **位置可配置**；不改动 `%APPDATA%\QuantDSH` 根。
 > 说明：v1 只落地**本地私有区**；企业授权区与团队共享区依赖服务端，随服务端一并延后（见 §10）。
 
-### 2.4 品牌与运行时标识（v1.5 全量改名）
+### 2.4 品牌与运行时标识（v1.6：carrier 层已改完）
 
-v1.5 起运行时标识随品牌统一改名，**不考虑与旧版兼容，不写数据迁移**：
+运行时标识随品牌统一改名，**不考虑与旧版兼容，不写数据迁移**。
 
-| 项 | 旧 | 新 |
-|---|---|---|
-| 协议 scheme | `workdsh://` | `quantdsh://` |
-| Windows 绕行 host | `workdsh.localhost` | `quantdsh.localhost` |
-| 资源目录 | `workdsh-runtime` | `quantdsh-runtime` |
-| 产品常量 | `runtime_pack::PRODUCT = "WorkDSH"` | `"QuantDSH"` |
-| 数据根 | `%APPDATA%\WorkDSH` | `%APPDATA%\QuantDSH` |
-| 环境变量 | `WORKDSH_*` | `QUANTDSH_*` |
-| profile 名 | `profiles\workdsh` | `profiles\quantdsh` |
-| npm 包 | `workdsh-*` | `quantdsh-*` |
-| 部署配置 | `workdsh-config.json` | `quantdsh-config.json` |
+| 项 | 旧 | 新 | 状态 |
+|---|---|---|---|
+| 协议 scheme | `workdsh://` | `quantdsh://` | ✅ 已改 |
+| Windows 绕行 host | `workdsh.localhost` | `quantdsh.localhost` | ✅ 已改 |
+| 资源目录 | `workdsh-runtime` | `quantdsh-runtime` | ✅ 已改 |
+| 产品常量 | `runtime_pack::PRODUCT = "WorkDSH"` | `"QuantDSH"` | ✅ 已改 |
+| 数据根 | `%APPDATA%\WorkDSH` | `%APPDATA%\QuantDSH` | ✅ 已改 |
+| 环境变量 | `WORKDSH_*` | `QUANTDSH_*` | ✅ 已改 |
+| profile 名 | `profiles\workdsh` | `profiles\quantdsh` | ✅ 已改 |
+| 部署配置 | `workdsh-config.json` | `quantdsh-config.json` | ✅ 已改 |
+| 窗口 label / 菜单 id / Tauri 命令名 | `workdsh-window-*` / `workdsh-return` / `workdsh_navigate` | `quantdsh-*` | ✅ 已改 |
+| 脚本名 / crate 名 / npm 包名（carrier 自身） | `pack-workdsh-*.mjs` / `workdsh-desktop-tauri` | `pack-quantdsh-*.mjs` / `quantdsh-desktop-tauri` | ✅ 已改 |
+| **Profile npm 包名** | `workdsh-contracts` / `workdsh-ui` / `workdsh-plugin-*` / `workdsh-provider-*` | `quantdsh-*` | ⏸ 随 profile fork 一并改 |
+| **cordis 插件 id / 服务键 / 插槽名** | `workdsh-identity-local` / `workdshConnectors` / `workdsh.workbench.frame` | 同上 | ⏸ 随 profile fork 一并改 |
+
+**最后两行为什么没一起改**：它们定义在 Profile 源码（另一个仓库），carrier 只按名字引用。
+carrier 单方面改名会「打包成功、启动后插件全部加载不到」—— 典型静默失败，比编译错误难查得多。
+必须 carrier 与 Profile 同一提交改完。这也是 profile 必须 fork 进本仓库的直接原因。
+
+**实测**：carrier 层 44 个文件已改完，`cargo check` 通过，`cargo test` **40 项全通过**，与改名前的基线一致；
+`build\quantdsh-runtime` 与 `profiles\quantdsh` 构建产物目录已同步改名。
 
 **依据**：上游 `deepseek-harness`（`@deepseek-ai/dsh@0.2.1-rc.2`，与 `upstream.json` 一致）全仓 `workdsh` **0 命中**，装配产物 `primary-runtime` 也 0 命中。所以改名只需改 **carrier（Rust/脚本/conf）** 与 **profile 源码**两层，**不需要重建运行时**。
 
-**断代代价（已知并接受）**：旧数据目录、旧状态文件、旧 env、旧 cookie、旧撤销记录一律不再读取，相关兼容分支**直接删除**（净减代码）。唯一需要手工重算的是 workbench frame 字节补丁的两个 `sha256`（插槽名长度变化导致偏移与哈希失效），必须重新生成补丁而不是手改哈希。
+**断代代价（已知并接受）**：旧数据目录、旧状态文件、旧 env、旧 cookie、旧撤销记录一律不再读取，相关兼容分支**已直接删除**（净减代码）。唯一需要手工重算的是 workbench frame 字节补丁的两个 `sha256`（插槽名长度变化导致偏移与哈希失效），必须重新生成补丁而不是手改哈希 —— 这项随 profile fork 一起做。
 
-**实施纪律**：先做常量收敛（`src-tauri/src/brand.rs` 收口全部字面量，行为不变、`cargo test` 可验），再一次性改值；禁止全仓 `sed`。完整清单（22 项 carrier + 8 项 profile，含定义位置行号）见 `QUANTDSH_V1_IMPLEMENTATION.md` §1。
+**实施方式（据实记录）**：原计划先建 `brand.rs` 收口常量再改值。执行后判断不值得——530 处里绝大多数
+是一次性的，收口只能省"再换一次品牌"这一种情形；而真正的风险是**误伤 Profile 侧名字**（编译期发现不了）。
+实际改用「保护清单 + 两步替换」：先遮住 Profile 侧包名/插件 id/服务键/插槽名，再替换其余，最后 `cargo test` 兜底。
+唯一保留的常量是 `paths::PROFILE_NAME`（profile 名唯一来源）与 `runtime_pack::PRODUCT`（离线包校验用）。
+完整清单（22 项 carrier + 8 项 profile，含定义位置行号）见 `QUANTDSH_V1_IMPLEMENTATION.md` §1。
 
 ---
 
@@ -967,7 +991,7 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 
 | 层 / 子系统 | 职责（一句话） | 主要门禁键 |
 |---|---|---|
-| **Layer 0 · 桌面底座** | 托管 `quantdsh` profile、量化数据根、离线优先、入口与菜单、更新与回滚；**标识一致（v1.5 全量改名）** | `core.app` |
+| **Layer 0 · 桌面底座** | 托管 `quantdsh` profile、量化数据根、离线优先、入口与菜单、更新与回滚；**标识一致（v1.6：carrier 层已改完，Profile 侧待 fork）** | `core.app` |
 | **数据中枢 Data Hub** | 连接器 → bronze → silver → DuckDB；增量同步与任务账；加密专属数据；PIT vintage；本库预览 | `data.hub`、`data.crypto-native` |
 | **策略工坊 Strategy Workshop** | 因子库与评估 → 生命周期与血缘 → 回测（成本/crypto 补完）→ 结果工作台 → 质量闭环 | `research.*`、`quality.monitor` |
 | **交易台 Trading Desk** | 适配层（首版 Binance + OKX）→ Preflight → 仿真 / 实盘 → 成交与费用口径 → 性能归因 | `trade.*`、`analysis.performance` |
@@ -983,6 +1007,8 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 |---|---|---|---|
 | 沿用 `quantdsh` profile 扩展 quant 工作区、独立数据根、离线优先；**全量改名为 QuantDSH 标识**（§2.4） | `core.app` | [O] | P0 |
 | 多源连接器框架：`DataSource` trait + 按 market 注册 + **失败软着陆**（首版 **Binance + OKX**） | `data.hub` | [D] | P0 |
+| **市场适配器抽象** `MarketAdapter`：universe / 交易日历 / 涨跌停 / 整手 / T+1 / **年化天数** / 手续费模型 / 复权口径（crypto：365 天、无涨跌停、无复权、比例费率）⭐ | `data.hub` | [D][M] | P0 |
+| **富化特征白名单**：预计算指标（RSI / MACD / Beta / 资金费率 / 基差 / 持仓量 / 多空比 / 清算量）以**固定列名**暴露给因子表达式与工厂，直接决定因子空间上限 | `data.hub` | [M][O] | P0 |
 | 本地数据湖：Parquet + DuckDB，bronze→silver 分层 | `data.hub` | [M][O] | P0 |
 | 本库预览：来源、日期范围、表格预览（**只读视图，不是第二份存储**） | `data.hub` | [QS] | P1 |
 | 增量同步、断点续传、同步任务账与指纹校验 | `data.hub` | [M][O] | P0 |
@@ -1019,10 +1045,68 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 | **策略构建**：规则 / ML / 混合；参数空间与超参搜索；**walk-forward** 分段验证 | `research.backtest` | [M][O] | P1 |
 | 跨资产规则插件位（涨跌停/停牌/整手/T+1，为 A 股期货预留） | `research.backtest` | [M] | P2 |
 | **自动因子挖掘**（闭环：候选提案 → 校验 → 计算 → 评估 → 去重 → 筛选 → 变异；SQLite 任务表断点续跑；LLM 只提案不判分）⭐ | `research.factor-automine` | [M][O] | P0 |
+| **因子工厂**（算子 × 窗口 × 二元组合全量衍生 → IC/ICIR 排序 → 相关性去重 0.85 → 保留集；纯计算、无 LLM、确定性可测）⭐ | `research.factor-automine` | [M] | P0 |
+| **演化谱系 Trace DAG**（每节点记 `parent_id` + 数据版本 + 表达式 + 指标 + 决策；变异必须继承父节点）⭐ | `research.factor-automine` | [M] | P0 |
+| **人工介入点（HITL）**：初始参数 / 假设确认 / 反馈确认三处可暂停等确认，由 slots 面板承载 | `research.factor-automine` | [M] | P1 |
 | **挖掘防自欺**（walk-forward 分段 + 多重检验惩罚 deflated Sharpe + PIT universe + 候选池与算力预算 + 相关性去重阈值 0.7）⭐ | `research.factor-automine` | [O] | P0 |
-| **因子自主进化**（遗传演化扩展，建立在自动挖掘之上） | `research.automl` | [M] | P2 |
+| **因子自主进化**（遗传演化扩展，建立在工厂 + Trace DAG 之上） | `research.automl` | [M] | P1 |
 | 模型工场与集成（`ModelAdapter` 接口） | `research.automl` | [M] | P2 |
 | **生产质量闭环**：Rank IC/ICIR 回填 + SHAP + PSI 双通道告警 ⭐ | `quality.monitor` | [M] | P2 |
+
+#### 6.2.1 自动挖掘的两条路径与三个机制（据 QuantMind RD-Agent 核对补全）
+
+原方案只写了「LLM 提案 → 校验 → 计算 → 评估 → 去重 → 变异」一条路径。核对 QuantMind 的
+RD-Agent 实现后，补三块：**第二条路径（因子工厂）**、**三个真正起作用的机制**、**一条明确分歧**。
+
+**路径二 · 因子工厂（确定性，v1 先做这条）**
+
+RD-Agent 走的是 LLM 提假设、逐轮演化；QuantMind 另有一个 `factor_factory` 走完全相反的路：
+不做提案，直接拿数据面已有的几百个字段做 `算子 × 窗口 × 二元组合` 全量衍生，算完 IC/ICIR
+再按相关性去重（阈值 0.85）取 top-n 写成可训练的 parquet。
+
+| 维度 | 因子工厂 | LLM 演化 |
+|---|---|---|
+| 驱动 | 枚举，无 LLM | LLM 提假设 |
+| 可复现 | 完全确定 | 依赖模型与温度 |
+| 适合 | 数据面已知、想从海量式子里筛好货 | 想挖出人没想到的方向 |
+| 成本 | 纯算力 | 算力 + token |
+| 我们的顺序 | **v1 先做** | 工厂之上再做，用 LLM 做方向引导 |
+
+算子集沿用：时序 `ts_rank / ts_std / roc / zscore / delta / decay / slope`，截面
+`cs_rank / cs_zscore`，二元 `cs_diff / cs_ratio / ts_corr`；窗口 `5 / 10 / 20 / 60`。
+产出候选池 + IC/ICIR 排序 + 去重后保留集，全程写 `jobs.sqlite` 可断点续跑。
+
+**三个必须补的机制**
+
+1. **Trace DAG，不是日志**。每节点记 `parent_id`、数据版本、表达式、指标、决策。变异必须继承
+   父节点的数据版本与参数 —— 否则「演化」退化成「随机重采」，跑再多轮也不收敛。这是 RD-Agent
+   能推出的根本原因，比任何 prompt 技巧都关键。
+2. **人工介入点（HITL）三处**：初始参数（池子/区间/方向）、假设确认（这个方向挖不挖）、
+   反馈确认（LLM 判放弃，人是否同意）。RD-Agent 有完整实现，在 DSH 里正好用 **slots 面板 +
+   会话卡**承载，这也是我们比纯脚本产品强的地方。
+3. **算力预检与降级**。RD-Agent 要求 8 核 / 32GB，低于此直接拒绝，避免把用户机器打爆。
+   我们按核数与内存算并行度，**超限降级到串行而不是拒绝**（桌面产品不能因为配置低就不让用）。
+
+**数据面决定因子空间（原方案缺，且必须前置定下）**
+
+QuantMind 把预计算指标以白名单方式暴露给因子表达式（`rsi_14` / `macd_hist` / `beta_20` /
+`pe_ttm` / `netflow_*` / `chip_profit_20` / `concept_hot` 等 30+ 项）。LLM 与工厂都能直接引用，
+因子空间因此大两个量级。**这条必须在数据层设计时就定**，事后加字段要重跑全部因子。
+crypto 侧的对应做法：把资金费率、基差、持仓量、多空比、清算量做成同类白名单。
+
+**训练 / 验证 / 测试切分要具体**
+
+RD-Agent 的默认切分是硬的（train 2016-01-01 起，valid 2021-01-01 ~ 2022-12-31，
+test 2023-01-01 ~ 2025-12-31）。我们按 crypto 样本量重定一套，但**必须是配置项**，
+不许散落在代码里 —— 否则「walk-forward」只是文档里的词。
+
+**一条明确分歧：LLM 能不能参与判定**
+
+RD-Agent 让 LLM 读回测结果判定「假设是否成立、下一轮往哪走」。原方案 Q10 写的是
+「LLM 只提案与解释，不参与打分与入选决策」。折中方案：
+
+- **入选判定**：只看指标，LLM 不参与。入选是资产决策，必须可审计、可复现。
+- **方向决策**：LLM 可以参与（扩展 / 变异 / 放弃）。这是搜索策略，直觉有价值且判错代价低。
 
 ### 6.3 交易执行
 
@@ -1054,7 +1138,7 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 | 加密分析师扩展（链上 / 资金费率结构 / 清算地图）⭐ | `research.agents-pro` | [O] | P2 |
 | LLM 结构化输出（强制 JSON）+ 主备降级链 + **HTTP 402 自动降级**，避免 AI 调用一失败就中断 | `research.agents` | [D] | P0 |
 | **成功/失败知识复用 + 超量抽样 + 并行实现**（已解过的不重算、失败过的不重试、超量则抽样） | `research.agents-pro` | [M] | P2 |
-| **研发闭环** propose→exp→code→run→feedback→累积 Trace | `research.automl` | [M] | P2 |
+| **研发闭环** propose → exp → run → feedback → 累积 Trace DAG（无 code 环节：表达式即实现，不生成代码） | `research.automl` | [M] | P1 |
 | Scenario 可插拔研发框架（因子 / 模型 / 数据科学共用一套演化器，流水线不写死） | `research.automl` | [M] | P2 |
 
 ### 6.5 协作、资产与组织
@@ -1116,6 +1200,12 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 | **缓存键 = md5(源码)** 的结果缓存 | QuantMind `cache_with_pickle` | 同码不重跑，迭代因子省算力 |
 | 错误信息路径脱敏 + 2000 字符头尾截断 | QuantMind `FactorFBWorkspace` | 护隐私、控 LLM token |
 | LLM 输出 `json_object` + 主备降级链 + **HTTP 402 自动降级** | QuantDinger `llm.py` | AI 调用健壮性 |
+| **Trace DAG 而非日志**：每节点 `parent_id` + 数据版本 + 表达式 + 指标 + 决策，变异继承父节点 | QuantMind `RDLoop.record` / `Trace.sync_dag_parent_and_hist` | 演化能收敛的前提；退化成日志就只是随机重采 |
+| **因子工厂**：算子 × 窗口 × 二元组合全量枚举 → IC/ICIR 排序 → 相关性去重 | QuantMind `backend/scripts/factor_factory.py` | 确定性、可测，适合做 v1 的第一版挖掘 |
+| **HITL 三处介入点**：初始参数 / 假设 / 反馈 | QuantMind `RDLoop._interact_*` | 桌面端可用 slots 面板做得比脚本产品更好 |
+| **算力预检**（8 核 / 32GB 才允许跑，否则直接拒绝） | QuantMind `hw_lock.py` | 我们改为**降级到串行**而非拒绝 |
+| **`MarketAdapter` 承载市场差异**（年化天数 / 涨跌停 / 费率 / 复权 / universe） | QuantMind `market_adapters/{a_share,crypto,...}.py` | 加新市场不改内核；crypto 365 天、无涨跌停、无复权、比例费率 |
+| **富化特征白名单**（30+ 预计算指标以固定列名注入因子空间） | QuantMind `rd_loop_wrapper._ENRICH_*` | 因子空间大两个量级，且必须前置定 |
 | **有状态任务必须单 worker** | 两家共同教训 | 避免 job 状态跨进程导致 404 |
 | **内部回调 secret 生产环境 fail-closed** | QuantMind `INTERNAL_CALL_SECRET` | 防伪造回调 |
 | Windows 上 `signal` 超时无效 → **须用子进程方案做沙箱** | QuantDinger `safe_exec.py` 的踩坑 | 我们是 Windows 桌面端，必须避开此坑 |
@@ -1170,16 +1260,16 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 > 已确认的启动方式：**契约优先**（先定稿 API / token / 表结构，再并行实现两端）。
 > 决策已并入下表：`quantdsh` profile 扩展 · 免费 + 订阅分层 · 服务端托管共享区 · Binance + OKX · **一个用户单组织** · 不做按次计量 · 不处理 license · **免费额度按币种切** · **无 trial** · **席位到期立即失效** · **防破解设计（代码公开）** · **全量改名 QuantDSH（不兼容旧版）**。
 >
-> **v1.5 实施节奏（当前执行顺序）**：先做完**纯客户端**的 v1，服务端整体延后到 v1 之后。
+> **实施节奏（v1.5 定，v1.6 执行中）**：先做完**纯客户端**的 v1，服务端整体延后到 v1 之后。
 > 服务端相关的项（key 登录、签名快照、席位、订阅与支付、团队共享区、实盘票据）这一轮**全部不写代码**，
 > 但接口接缝必须留（§2.4 / §3.4 / 配套文档 §2）——判断标准是"接服务端时不改调用方"。
 
 | 阶段 | 目标 | 交付物 | 完成判定（DoD） |
 |---|---|---|---|
-| **v1 · 客户端闭环**（优先执行） | 单机全功能可用，不依赖任何服务端 | 全量改名为 QuantDSH 标识（§2.4）；`can_access` 接缝 + `LocalEntitlement` + 19 个 key 常量 + `scope_for` 调用点；Rust 引擎 sidecar（DuckDB + Binance/OKX）；quant 工作区与 `%APPDATA%\QuantDSH\quant\` 数据根；因子表达式校验 + 因子评估 + 回测 + 仿真；**自动因子挖掘（含防自欺）**；Skill/Expert/Team 与对话入口；slots 面板 | 装机即可用，**无需登录、断网可用**；"取数 → 挖因子 → 回测 → 仿真"一条链路跑通；把任一 key 从 `LocalEntitlement` 移除后对应入口即失效（验证接缝有效） |
+| **v1 · 客户端闭环**（优先执行） | 单机全功能可用，不依赖任何服务端 | 全量改名为 QuantDSH 标识（§2.4，**carrier 层已完成**）；`can_access` 接缝 + `LocalEntitlement` + 19 个 key 常量 + `scope_for` 调用点；Rust 引擎 sidecar（DuckDB + Binance/OKX）；quant 工作区与 `%APPDATA%\QuantDSH\quant\` 数据根；**`MarketAdapter` + 富化特征白名单**；因子表达式校验 + 因子评估 + 回测 + 仿真；**因子工厂 → LLM 演化（含 Trace DAG 与防自欺）**；Skill/Expert/Team 与对话入口；slots 面板 | 装机即可用，**无需登录、断网可用**；"取数 → 挖因子 → 回测 → 仿真"一条链路跑通；把任一 key 从 `LocalEntitlement` 移除后对应入口即失效（验证接缝有效） |
 | **P0 · 服务端骨架与两端联调**（v1 之后） | 两端有共同语言 | 契约定稿（§3.3 的 19 项 key + §4.3 DDL + §4.4 路由）；服务端最小集（账号/组织/用户/团队/授权/席位/Key/verify/审计/**吊销增量/设备绑定/签名密钥**）；`users.org_id` 单值、email 全局唯一；客户端 key 登录 + SQLite 快照，`LocalEntitlement` 换 `ServerEntitlement`；授权完整性基线（§3.8 L1–L3、L6）；额度按币种（§3.7）：`FREE_SYMBOLS` + 服务端下发 `symbol_scope` | 不登录、断网状态下仍能跑通"取数→回测→仿真"；持有 key 时订阅功能出现；`can_access` 单测覆盖隐含前置、**权益到期逐秒失效**、席位释放、快照过期；**篡改快照任一字节即 fail-closed**；系统时间回拨无法让过期权益复活；**同一邮箱无法被第二个组织再拉入** |
 | **P1 · 订阅闭环与生产投研** | 从"能研究"到"研究可积累、订阅可交付" | **官网套餐与支付闭环**（`/plans`、`/orders`、幂等回调 → 激活订阅、`auto_renew`）；API Key 轮换/吊销/默认初始化；实盘 opt-in（**仅限 Binance + OKX**，Preflight 守门 + **在线票据 §3.8 L5**）；`research.*-pro` 三件套（crypto 成本补完+mtf、因子生命周期血缘、多智能体流水线 + 记忆反思含服务端两 API）；`data.crypto-native`；**服务端供给型数据的加密下发（§3.8 L4）**；严格费用口径与性能归因；PIT 时点数据；**服务端托管的团队共享区** + 席位管理；（v1.1 明确）**订阅权益判定不含计量与账单** | 换一枚已占席的 key 后功能集合正确变化；释放席位后下次刷新权益被裁剪；**到期时刻到点的前后各一次调用结果正确**；同一研究可被他人一键复现；实盘只能经 Preflight + 显式开关 + 有效票据进入 |
-| **P2 · 生产化与生态** | 长期有效性、多资产、生态 | 统一做**免费 / 订阅的功能切分与套餐定价**（v1.3 决策 B）；质量闭环（IC/SHAP/PSI）；因子自主进化；研发闭环 Trace；模型工场；多资产扩展（A 股/期货/美股 + IBKR/MT5 形态）；策略与因子市场 + 可复现发布；Work 办公；团队告警 | 因子上线后有持续有效性监控与漂移告警；新资产类别可在不强改内核前提下接入；**切分上线只改套餐配置与一处常量，功能代码零改动** |
+| **P2 · 生产化与生态** | 长期有效性、多资产、生态 | 统一做**免费 / 订阅的功能切分与套餐定价**（v1.3 决策 B）；质量闭环（IC/SHAP/PSI）；因子自主进化的**遗传扩展**（在 Trace DAG 之上做交叉/变异算子）；模型工场；多资产扩展（A 股/期货/美股 + IBKR/MT5 形态）；策略与因子市场 + 可复现发布；Work 办公；团队告警 | 因子上线后有持续有效性监控与漂移告警；新资产类别可在不强改内核前提下接入；**切分上线只改套餐配置与一处常量，功能代码零改动** |
 
 > **不在本路线图内**：按次计量统计与用量账单、license 合规工作、**试用期机制（不做 trial）**。
 > （注：**订阅套餐与支付闭环在范围内**，见 §1.4.1；这里排除的是"用多少算多少钱"的计量计费模型。）
@@ -1187,7 +1277,7 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 **口径映射**：原功能附录用的是 **MVP / v1 / v2**，与 **P0 / P1 / P2** 同义，本文统一用 P0/P1/P2。
 若有冲突（例如早期把"crypto 回测补完"列为 MVP、把企业版列为 v1），**以本表为准**。
 
-**v1 内部交付顺序**（当前执行）：常量收敛 → 全量改名 → profile fork 进仓库 → 引擎 sidecar 起步（DuckDB + 单交易所）→ 数据湖与 silver 层 → 因子校验与评估 → 回测 → 自动因子挖掘 → 仿真 → slots 面板。
+**v1 内部交付顺序**（当前执行）：常量收敛（判断不需要，改为保护清单替换）→ 全量改名 ✅（carrier 层）→ **profile fork 进仓库 ← 现在这里** → 引擎 sidecar 起步（DuckDB + 单交易所）→ 数据湖与 silver 层 → **`MarketAdapter` + 富化特征白名单** → 因子校验与评估 → 回测 → **因子工厂 → LLM 演化（Trace DAG）** → 仿真 → slots 面板。
 每一步的验收见 `QUANTDSH_V1_IMPLEMENTATION.md` §9。
 
 **P0 内部交付顺序**（v1 完成后，契约优先）：契约定稿 → 服务端骨架 → 客户端 key 登录 + `LocalEntitlement` 换 `ServerEntitlement` → 授权完整性 → 联调回归（详见 §4.6）。
@@ -1231,7 +1321,7 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 | Q7 | 记忆增强 + 反思闭环 | 本地 SQLite + 打分公式 + 自动反思 worker + 手动复盘；服务端 `/api/agent/memory`、`/api/agent/reflect` | 有效 |
 | Q8 | 质量闭环 | 每日 Rank IC/ICIR 回填 + SHAP 重要性 + PSI 双通道告警（crypto 用截面 IC 口径） | 有效 |
 | Q9 | 回测 crypto 补完 | 资金费率 / 期现基差 / 逐仓全仓保证金 / 强平与结算 | 有效 |
-| Q10 | **自动因子挖掘** | 策略工坊内置闭环：候选提案 → 校验 → 计算 → 评估 → 去重 → 筛选 → 变异；**LLM 只提案与解释，不参与打分与入选决策**；必须支持断点续跑（DSH 的 jobs 不持久） | **v1.5 新增**（`research.factor-automine`）；实现见配套文档 §6 |
+| Q10 | **自动因子挖掘** | 策略工坊内置**两条路径**：① **因子工厂**（算子 × 窗口 × 二元组合枚举衍生，纯计算无 LLM，**v1 先做**）② **LLM 演化**（提案 → 校验 → 计算 → 评估 → 去重 → 变异）。**入选判定只看指标，LLM 不参与**；**方向决策可由 LLM 参与**。必须有 **Trace DAG**（变异继承父节点）与断点续跑（DSH 的 jobs 不持久） | **v1.5 新增，v1.6 补全**（`research.factor-automine`）；实现见配套文档 §6、本文 §6.2.1 |
 
 **企业侧 10 项**
 
@@ -1301,9 +1391,21 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 
 ---
 
-> **§12.2 已无待定项**，设计阶段的开放问题全部关闭。
-> **当前执行顺序（v1.5）**：按 §10 的 **v1 · 客户端闭环** 开工，不再等"两端一起"：
-> **常量收敛 → 全量改名 → profile fork 进仓库 → 引擎 sidecar 起步（DuckDB + 单交易所）→ 数据湖与 silver 层 → 因子校验与评估 → 回测 → 自动因子挖掘 → 仿真 → slots 面板**。
+### 12.6 第六轮已拍板（v1.6，已并入全文）
+
+| # | 议题 | 结论 | 落点 |
+|---|---|---|---|
+| A | **改名执行结果** | carrier 层 44 个文件已改完，`cargo check` 通过、`cargo test` **40 项全通过**。Profile 侧包名/插件 id/服务键/插槽名**故意不改**——carrier 单方面改会「打包成功但插件全加载不到」，属静默失败 | §2.4 |
+| B | **自动挖掘补第二条路径** | 补**因子工厂**（枚举衍生，确定性、可测）。**v1 先做工厂**，LLM 演化放在其之上做方向引导 | §6.2 / §6.2.1 |
+| C | **演化机制补三件** | **Trace DAG**（非日志，变异继承父节点）、**HITL 三处介入点**、**算力预检与降级**（超限降级到串行，不拒绝） | §6.2 / §6.2.1 |
+| D | **LLM 判定边界** | 折中：**入选只看指标**（资产决策要可审计、可复现），**方向决策 LLM 可参与**（搜索策略，判错代价低） | §6.2.1 / §12.0 Q10 |
+| E | **市场差异抽象** | `MarketAdapter` 承载 universe / 交易日历 / 涨跌停 / 整手 / T+1 / 年化天数 / 费率模型 / 复权口径 | §6.1 |
+| F | **数据面预留特征位** | 富化特征白名单在**数据层设计阶段**就定，事后追加要重跑全部因子 | §6.1 |
+
+---
+
+> **§12 已无待定项**，设计阶段的开放问题全部关闭。
+> **当前执行顺序**：常量收敛（判断不需要，改为保护清单替换）→ 全量改名 ✅（carrier 层）→ **profile fork 进仓库 ← 现在这里** → 引擎 sidecar 起步（DuckDB + 单交易所）→ 数据湖与 silver 层 → **市场适配器 + 富化特征白名单** → 因子校验与评估 → 回测 → **因子工厂 → LLM 演化** → 仿真 → slots 面板。
 > 服务端（key 登录 / 签名快照 / 席位 / 订阅支付 / 团队共享区 / 实盘票据）整体延后到 v1 之后，但接缝必须在 v1 就留好。
 > 唯一延后到 P2 的是**免费 / 订阅的功能切分**——按你的决定，等功能做完整后再统一规划。
 > 实现细节与每步验收见 `QUANTDSH_V1_IMPLEMENTATION.md`。
