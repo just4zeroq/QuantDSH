@@ -19,7 +19,7 @@
 | 项 | v1 处理 | 理由 |
 |---|---|---|
 | `can_access(feature_key)` 唯一判定出口 | **必须现在就做** | 之后接服务端时只换实现，UI 与工具代码零改动 |
-| 18 个 `feature_key` | **保留**，退化为功能分组标签 | 分组本身对 UI 组织有价值，且是未来的门禁键 |
+| 19 个 `feature_key` | **保留**，退化为功能分组标签 | 分组本身对 UI 组织有价值，且是未来的门禁键 |
 | `symbol_scope`（免费额度按币种） | **保留接口**，v1 返回 `Unlimited` | 接服务端后由快照下发，不改调用方 |
 | 团队 / 席位 / 订阅 / 支付 UI | **不挂载** | 半成品 UI 比没有更糟；但数据模型与路由在文档里已定稿 |
 | token 登录 / 签名快照 / 设备绑定 / 实盘票据 | **不实现** | 全部依赖服务端，v1 无对应物 |
@@ -146,7 +146,7 @@ fork 后体积约 6 MB / 190 文件，可接受。`--source` 覆盖参数保留�
 ```rust
 // qd-core/src/entitlement.rs
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum FeatureKey { DataCrypto, DataCn, ResearchBacktest, /* … 18 项 */ }
+pub enum FeatureKey { DataCrypto, DataCn, ResearchBacktest, FactorAutoMine, /* … 共 19 项 */ }
 
 pub enum SymbolScope { Unlimited, Limited(&'static [&'static str]) }
 
@@ -625,7 +625,7 @@ profile/packages/quantdsh-plugin-quant/
 3. 引擎 sidecar：`qd-core` + `qd-api` + `qd-store`，能启动、能被插件调通（`/health`）
 4. carrier 拉起引擎 + token 传递 + 退出清理
 5. 插件：`quantdsh_data_sync` 一个 tool 打通（Binance 单 symbol 日线 → Parquet → 查询返回）
-6. `LocalEntitlement` + 18 个 feature_key 常量 + 单测
+6. `LocalEntitlement` + 19 个 feature_key 常量 + 单测
 
 **验收**：装好的包里，agent 说"同步 BTCUSDT 日线"，能真的拉数据、落盘、回读并答出"共 N 根，最新收盘价 X"。
 

@@ -1,14 +1,24 @@
 # QuantDSH 产品方案（终版）
 
-> **版本**：FINAL **v1.4（合并版）** · 2026-10-26
+> **版本**：FINAL **v1.5** · 2026-10-26
 > **地位**：本文档是 QuantDSH **整体产品的单一事实来源**。原「企业契约附录」（`QUANTDSH_ENTERPRISE_PLAN.md`）与「功能模块附录」（`QUANTDSH_QUANT_PLAN.md`）已**全文并入**本文，两份文件已删除。
+> **配套文档**：`QUANTDSH_V1_IMPLEMENTATION.md` 是本文的实现层配套（改名清单、引擎架构、数据层、因子挖掘状态机）。本文说"做什么"，配套文档说"怎么做、按什么顺序、哪里留缝"。
+>
+> ### v1.5 变更（第五轮拍板：改名 + 服务端延后 + v1 技术决议）
+> | # | 议题 | 结论 | 影响面 |
+> |---|---|---|---|
+> | A | **品牌与运行时标识** | **全量改名 QuantDSH**：`quantdsh://` scheme、`quantdsh.localhost` host、`quantdsh-runtime` 资源目录、`QUANTDSH_*` 环境变量、`%APPDATA%\QuantDSH` 数据根、`quantdsh-*` npm 包名、`profiles\quantdsh`、`PRODUCT = "QuantDSH"`。**不考虑兼容性，不写数据迁移**（直接断代） | §2.3 / §5.2 / §5.4 / §11 / §12.0 Q1·Q5；清单见配套文档 §1 |
+> | B | **服务端节奏** | **暂时不做服务端**，先完成客户端功能开发，之后再接。≠ 取消服务端设计：`can_access` 单一出口、19 个 `feature_key`、`symbol_scope` 接口、服务端契约（§4）全部保留 | §3.3 / §3.7 / §3.8 / §10；实现见配套文档 §2 |
+> | C | **技术栈** | **尽量 Rust**：引擎独立 sidecar（DuckDB + arrow/parquet + axum），TS 插件只做 tool 转发与 UI 渲染。**不用 Python**（DSH 的 Python 后端 Windows 不支持，DuckDB 有 Rust crate） | §2.2 / §5.1 |
+> | D | **策略工坊** | 新增**自动因子挖掘**（闭环状态机 + 防自欺校验） | §6.2 |
+> | E | **AI 能力落地** | 三家参照的 12 项 AI 功能逐项核对 DSH 扩展点承载方式（原生 / 半自研 / 自研 / 不做） | §6.0；对照表见配套文档 §8 |
 >
 > ### v1.4 变更（三份方案合并为一份）
 > | # | 动作 | 结果 | 落点 |
 > |---|---|---|---|
 > | A | 并入企业契约附录 | 服务端技术栈、**基础四表 DDL**（`orgs`/`teams`/`team_memberships`/`access_keys`）、客户端缓存 schema、实现顺序全部上收 | §4.3 / §4.6 / §5.5 |
 > | B | 并入功能模块附录 | 19 项已锁定决策（量化 9 + 企业 10）、子系统职责、能力横评、`MVP/v1/v2` → `P0/P1/P2` 口径映射 | §6.0 / §8.3 / §10 / §12.0 |
-> | C | 消解三处文档间矛盾 | ① 数据目录统一 `profiles\workdsh\quant\`（早期 `profiles\quantdsh` 作废）② 授权缓存统一 **SQLite**（早期附图误写 DuckDB）③ 路由统一以 §4.4 为准（早期 `/api/org/*` 作废） | §2.3 / §5.4 / §4.6 |
+> | C | 消解三处文档间矛盾 | ① 数据目录统一 `profiles\quantdsh\quant\`（v1.5 按改名更新）② 授权缓存统一 **SQLite**（早期附图误写 DuckDB）③ 路由统一以 §4.4 为准（早期 `/api/org/*` 作废） | §2.3 / §5.4 / §4.6 |
 > | D | 补齐遗漏功能行 | 策略构建（walk-forward）、运行留痕与审计、本库预览 | §6.1–§6.5 |
 >
 > ### v1.3 变更（第四轮拍板）
@@ -35,7 +45,7 @@
 > | 3 | 团队共享区 | **服务端托管** | §2.3 / §4 锁定 |
 > | 4 | 版本与商业模式 | **在个人版基础上发展**：部分功能免费、部分需订阅 key；**订阅分为个人订阅与团队订阅** | §1.4 / §3.5 / §3.6 / §5.1 重写 |
 > | 5 | 首版交易所 | **Binance + OKX** 两家 | §3.3 / §6.3 / §10 收敛 |
-> | 6 | 技术基座 | **沿用既有 DSH 运行时 profile（`workdsh`）扩展**，不另起 `quantdsh` profile | §2.1 / §5.2 / §5.4 修订（原 v1.0 的 profile 切换改造取消） |
+> | 6 | 技术基座 | **沿用既有 DSH 运行时 profile 扩展**，不新建独立 profile —— **v1.5 修订**：profile 名随品牌统一改为 `quantdsh`（仍是"扩展同一个 profile"，只是标识改名） | §2.1 / §5.2 / §5.4；见 §12.0 Q5 |
 >
 > 除上述六点外，v1.0 已锁定的决策（量化 9 项 + 企业 10 项）**继续有效**，逐条见 §12.0。
 >
@@ -141,9 +151,9 @@
                          │  key 会话 · can_access 门禁 · 离线降级       │
                          │  entitlement 缓存(SQLite) · keychain        │
                          └────────────────────┬───────────────────────┘
-                              ③ 托管 profile   │  workdsh:// 协议
+                              ③ 托管 profile   │  quantdsh:// 协议
                          ┌────────────────────▼───────────────────────┐
-                         │  运行时 profile `workdsh`（沿用）+ quant 工作区 │
+                         │  运行时 profile `quantdsh`（沿用）+ quant 工作区│
                          │                                            │
                          │  数据中枢 · 策略工坊 · 交易台 · 投研智能体      │
                          │  本地数据湖 DuckDB · 本地记忆 SQLite           │
@@ -152,13 +162,15 @@
 
 **为什么要三层而不是两层**：运行时 profile 是所有业务 UI 的容器，carrier 只负责身份、门禁、窗口与运行时生命周期。把授权与 UI 分开放，才能保证「换工作区不换授权体系」「离线也能门禁」「实盘能力可按地区/构建开关整体关掉」。
 
-> **决策（v1.1）：沿用 `workdsh` profile 扩展，不新建 profile。**
-> 量化能力作为该 profile 内的 **quant 工作区**叠加。收益：运行时契约天然不必动、既有用户平滑升级、省掉一整套 profile 打包与迁移；
-> 代价：量化数据与既有工作数据共处同一 profile 根，需要**目录命名空间隔离**（见 §5.4），且 carrier 侧原本计划的 `PROFILE_NAME` 切换改造**取消**。
+> **决策（v1.1，v1.5 修订命名）：扩展同一个 DSH 运行时 profile，不新建独立 profile。**
+> 量化能力作为该 profile 内的 **quant 工作区**叠加。收益：既有用户平滑升级、省掉一整套 profile 打包与迁移；
+> 代价：量化数据与既有工作数据共处同一 profile 根，需要**目录命名空间隔离**（见 §5.4）。
+> **v1.5 补充**：profile 名随品牌统一改为 `quantdsh`（`PROFILE_NAME` 改值），"扩展而非新建"的结构不变。
+> 改名依据：上游 `deepseek-harness` 全仓无 `workdsh` 标识，改名不触发运行时重建，详见配套文档 §1。
 
 ### 2.2 职责边界
 
-| 能力 | 官网/平台 | 客户端 carrier | workdsh profile（quant 工作区） |
+| 能力 | 官网/平台 | 客户端 carrier | quantdsh profile（quant 工作区） |
 |---|---|---|---|
 | 账号、组织、成员 | ✅ 唯一权威 | ❌ | ❌ |
 | 团队、功能授权、Key | ✅ 唯一权威 | 只读快照 | ❌ |
@@ -171,22 +183,51 @@
 
 > **红线**：实盘凭据、交易所密钥、策略源码**绝不上传服务端**。服务端只持有身份与授权。
 
+**技术栈分层（v1.5：尽量 Rust）**
+
+| 层 | 语言 | 内容 |
+|---|---|---|
+| **引擎** | **Rust** | 数据接入（reqwest / tokio-tungstenite）、存储（`duckdb` bundled + arrow/parquet）、因子计算与评估、回测、组合与风控、券商适配、本地控制面（axum） |
+| **载体** | **Rust** | Tauri carrier（已有），sidecar 用 `externalBin` 打包 |
+| **Profile** | **TS**（无法避免） | DSH 插件宿主是 Node：tool 注册、slots UI、preset 只能 TS |
+
+**不用 Python**：DSH 的 Python 后端在 Windows **明确不支持**，且没有任何 profile 挂载它；而 DuckDB 有 Rust crate（自带 C++ 库），不需要 Python 生态。所以"尽量 Rust"不是勉强，是顺势。
+
+**进程形态**：引擎独立成 sidecar 二进制（不进 carrier 进程），通道用 `127.0.0.1` HTTP + 每次启动随机 token。理由与细节见配套文档 §3。
+
 ### 2.3 三个存储区（重要）
 
 | 区 | 位置 | 引擎 | 内容 | 归属 |
 |---|---|---|---|---|
-| **本地私有区** | `%APPDATA%\WorkDSH\profiles\workdsh\quant\` | DuckDB + Parquet | 行情、资金费率/基差、因子、回测产物、交易所凭据（OS keychain）、本地记忆 | 用户独占，永不同步秘密 |
-| **企业授权区** | 同一 profile 下的 `entitlement.db` | SQLite | `{user, org, teams, grants}` 快照 + 拉取时间 | 服务端派生，本地缓存 |
+| **本地私有区** | `%APPDATA%\QuantDSH\quant\` | DuckDB + Parquet | 行情、资金费率/基差、因子、回测产物、交易所凭据（OS keychain）、本地记忆 | 用户独占，永不同步秘密 |
+| **企业授权区** | 同一 `quant\` 下的 `entitlement.db` | SQLite | `{user, org, teams, grants}` 快照 + 拉取时间 | 服务端派生，本地缓存 |
 | **团队共享区** | 服务端 SQLite/对象存储 | Axum | 共享策略/因子/报告/发布物 + provenance | 组织/团队维度，按需拉取只读副本 |
 
-> 数据根目录：`%APPDATA%\WorkDSH\profiles\workdsh\quant\`（v1.1 决定扩展既有 profile；早期 `profiles\quantdsh` 方案**已作废**），
-> **位置可配置**；不改动 `%APPDATA%\WorkDSH` 根。
+> 数据根目录：`%APPDATA%\QuantDSH\quant\`（v1.5 修正：从 `profiles\quantdsh\quant\` 移出，理由见 §5.4），
+> **位置可配置**；不改动 `%APPDATA%\QuantDSH` 根。
+> 说明：v1 只落地**本地私有区**；企业授权区与团队共享区依赖服务端，随服务端一并延后（见 §10）。
 
-### 2.4 运行时契约红线（不得改动）
+### 2.4 品牌与运行时标识（v1.5 全量改名）
 
-`workdsh://` scheme、`workdsh.localhost` host、`workdsh-runtime` 资源目录、`workdsh-*` npm 包名、
-`runtime_pack::PRODUCT = "WorkDSH"`、`%APPDATA%\WorkDSH` 数据根。
-改这些会破坏 dsh 兼容与离线包 manifest 校验。品牌变更只发生在**用户可见文案与 `identifier`**。
+v1.5 起运行时标识随品牌统一改名，**不考虑与旧版兼容，不写数据迁移**：
+
+| 项 | 旧 | 新 |
+|---|---|---|
+| 协议 scheme | `workdsh://` | `quantdsh://` |
+| Windows 绕行 host | `workdsh.localhost` | `quantdsh.localhost` |
+| 资源目录 | `workdsh-runtime` | `quantdsh-runtime` |
+| 产品常量 | `runtime_pack::PRODUCT = "WorkDSH"` | `"QuantDSH"` |
+| 数据根 | `%APPDATA%\WorkDSH` | `%APPDATA%\QuantDSH` |
+| 环境变量 | `WORKDSH_*` | `QUANTDSH_*` |
+| profile 名 | `profiles\workdsh` | `profiles\quantdsh` |
+| npm 包 | `workdsh-*` | `quantdsh-*` |
+| 部署配置 | `workdsh-config.json` | `quantdsh-config.json` |
+
+**依据**：上游 `deepseek-harness`（`@deepseek-ai/dsh@0.2.1-rc.2`，与 `upstream.json` 一致）全仓 `workdsh` **0 命中**，装配产物 `primary-runtime` 也 0 命中。所以改名只需改 **carrier（Rust/脚本/conf）** 与 **profile 源码**两层，**不需要重建运行时**。
+
+**断代代价（已知并接受）**：旧数据目录、旧状态文件、旧 env、旧 cookie、旧撤销记录一律不再读取，相关兼容分支**直接删除**（净减代码）。唯一需要手工重算的是 workbench frame 字节补丁的两个 `sha256`（插槽名长度变化导致偏移与哈希失效），必须重新生成补丁而不是手改哈希。
+
+**实施纪律**：先做常量收敛（`src-tauri/src/brand.rs` 收口全部字面量，行为不变、`cargo test` 可验），再一次性改值；禁止全仓 `sed`。完整清单（22 项 carrier + 8 项 profile，含定义位置行号）见 `QUANTDSH_V1_IMPLEMENTATION.md` §1。
 
 ---
 
@@ -231,6 +272,7 @@ User ──TeamMembership(Lead|Member)──▶ Team ──FeatureGrant(view|use
 | `data.crypto-native` | 加密专属数据 | 资金费率 / 期现基差 / 标记价 / 清算 / 深度快照 / 链上指标 | `data.hub` | 三家参照项目都没做好的差异化 |
 | `research.backtest-pro` | 回测加密补完 + 多周期 | mtf 多周期；资金费率、期现基差、逐仓/全仓保证金、强平与结算 | `research.backtest` | crypto 场景刚需 |
 | `research.factor-pro` | 因子生命周期与血缘 | 健康矩阵、拥挤度告警、退役/重建候选、provenance、handoff_card、一键复现 | `research.factor` | 生产化必备 |
+| `research.factor-automine` | 自动因子挖掘 | 候选提案 → AST 校验 → 批量计算 → IC/ICIR 评估 → 相关性去重 → 变异进化；断点续跑；walk-forward + 多重检验惩罚 + PIT | `research.factor` | **v1.5 新增**；实现见配套文档 §6 |
 | `research.agents-pro` | 多智能体流水线与记忆 | 五段流水线、结构化决策、**记忆增强与反思闭环**、服务端记忆共享、加密分析师扩展 | `research.agents` | 让智能体"会积累经验" |
 | `research.automl` | 自主进化与模型工场 | 因子进化循环、`ModelAdapter`、研发闭环 Trace | `research.factor` | 排在后期 |
 | `quality.monitor` | 生产质量闭环 | 每日 Rank IC/ICIR 回填 + SHAP 重要性 + PSI 漂移告警 | `research.factor` | 回答"上线后还灵不灵" |
@@ -240,7 +282,7 @@ User ──TeamMembership(Lead|Member)──▶ Team ──FeatureGrant(view|use
 | `market.publish` | 发布到市场 | 组织内/对外发布带 provenance 的研究 | `team.collab` | 后期开放 |
 | `notify.alerts` | 告警推送 | 应用内 / 邮件 / Webhook | `core.app` | IM 通道远期且需鉴权 |
 
-> **共 18 项功能键。**
+> **共 19 项功能键**（v1.5 新增 `research.factor-automine`）。
 > **功能本身的免费 / 订阅划分（以及套餐组合）本期不做，先把功能做完整，做完后统一规划。**（v1.3 决策 B）
 > 因此本节不再标注层级；`can_access` 的实现必须做到**切法上线时只改服务端套餐配置 + 一处白名单常量，不动功能代码**（见 §3.4 的判定入口单一化）。
 
@@ -268,6 +310,14 @@ can_access(feature_key) -> Decision {
 - **唯一判定入口**：全应用不得出现第二处 `feature_key` 判断；UI 置灰、数据同步、连接器下单、回测开关全部走这个函数。
 - **判定放在 native carrier（Rust）而非 web profile 的 JS**：profile 是 web 资产，改一行 JS 就能解锁；下沉到编译产物显著提高篡改成本（§3.8 L1）。web 侧只负责展示 `can_access` 的返回值。
 - 切法上线时只改 `FREE_KEYS` 常量 + 服务端套餐配置，**功能代码不动**。
+
+**v1 实现（服务端延后）**
+v1 里 `can_access` 仍然存在且是唯一出口，实现换成 `LocalEntitlement`：所有 key 返回 Granted、`source = local`、`expires_at = None`、`scope_for = Unlimited`。
+
+- 步骤 1–5 的流程 v1 **不实现**，但**函数签名与返回结构照上文保留**（含 `level` / `expires_at` / `source`）。
+- 目的：接服务端时只替换实现体，调用方（UI 置灰、数据入口闸门、回测开关）零改动。
+- **严禁把 `can_access` 写成 `return true` 的空壳**——必须是 `trait Entitlement` 的实现，否则替换时要改调用点。
+- 同理 `scope_for(feature_key) -> SymbolScope` 的**调用点必须在 v1 就存在**（在 symbol 解析处），哪怕恒返回 `Unlimited`；否则将来加币种限制要改数据层。
 
 ### 3.5 订阅模型与失效语义
 
@@ -340,7 +390,7 @@ entry.expires_at = min(
 
 | 项 | 定义 |
 |---|---|
-| `symbol_scope` | 一个**标的集合**，随快照下发并签名：`{ mode: 'whitelist'|'all', symbols: [...], source: 'free'|'plan' }` |
+| `symbol_scope` | 一个**标的集合**，随快照下发并签名：`{ mode: 'whitelist' \| 'all', symbols: [...], source: 'free' \| 'plan' }` |
 | 口径一致 | 免费额度依附于 `data.hub` 那条权益项，与功能权益**同源、同 `expires_at`、同一份签名** |
 | 生效点 | **数据层而非 UI 层**：连接器、同步任务、回测取数、仿真撮合统一先过 `resolve_symbol_scope(symbol)`；UI 置灰只是提示，真正的闸门在读写之前 |
 
@@ -509,7 +559,7 @@ sk = HKDF(shared = key_plaintext + server_random, info = dataset_id)   # 每次�
 
 约束调整（v1.2 · **单组织**）：**一个用户只属于一个组织**，永不出现跨组织成员关系。
 这条简化很值钱——授权求解不必做组织上下文切换，客户端 `entitlement` 快照里 `org` 是标量而非数组，
-`"$APPDATA%\WorkDSH\profiles\workdsh"` 下的数据命名空间也只需按 `org:user` 一级区分。
+`"$APPDATA%\QuantDSH\profiles\quantdsh"` 下的数据命名空间也只需按 `org:user` 一级区分。
 
 ```sql
 -- ===== 基础四表：orgs / teams / team_memberships / access_keys =====
@@ -580,7 +630,7 @@ CREATE TABLE feature_grants (
   org_id        TEXT NOT NULL REFERENCES orgs(id),
   subject_type  TEXT NOT NULL,                -- user|team
   subject_id    TEXT NOT NULL,                -- users.id | teams.id
-  feature_key   TEXT NOT NULL,                -- 见终版 §3.3 的 18 项
+  feature_key   TEXT NOT NULL,                -- 见终版 §3.3 的 19 项
   access_level  TEXT NOT NULL,                -- view|use|manage
   source        TEXT NOT NULL DEFAULT 'manual', -- manual|plan|grant（**无 trial**，v1.3 决策 C）
   granted_by    TEXT NOT NULL,
@@ -790,7 +840,7 @@ org.user.<32 字节随机 hex>
 
 **实现顺序（两端并行）**
 
-1. **定稿契约**：§3.3（18 项 `feature_key`）+ §4.3（15 张表）+ §4.4（路由）+ §4.5（token 形态）。
+1. **定稿契约**：§3.3（19 项 `feature_key`）+ §4.3（15 张表）+ §4.4（路由）+ §4.5（token 形态）。
 2. **服务端骨架**：迁移 + 路由 + 密码/key 哈希 + 最小管理 UI（组织、用户、团队、授权、席位）。
 3. **客户端**：key 登录 + SQLite 快照 + `FREE_KEYS` + `can_access`（native 判定）+ 单测（mock 服务端）。
 4. **授权完整性**：Ed25519 签发与验签、fail-closed、单调时钟护栏、吊销增量、设备绑定（§3.8 L1–L3）。
@@ -824,12 +874,12 @@ org.user.<32 字节随机 hex>
 
 | 层 | 现状 | 需要的改动 |
 |---|---|---|
-| carrier（`app.rs`） | `PROFILE_NAME = "workdsh"` | **保持不变**（v1.1：沿用 workdsh profile 扩展） |
-| `local_runtime.rs` | 两处硬编码 `"workdsh"` | 保持不变；如需常量化只做整理，不改值 |
-| `enterprise_auth.rs` | 代理外部后台账号密码登录 | 改为 key 登录 + 本地 SQLite 快照；协作/插件代理保留 |
-| 新增 `entitlement` 模块 | — | keychain 存 key、`entitlement.db` 存快照、`FREE_KEYS` 白名单 + `can_access` 命令 |
+| carrier（`paths.rs`） | `PROFILE_NAME = "workdsh"` | **v1.5 改值**为 `"quantdsh"`，并收口进 `brand.rs` 常量 |
+| `local_runtime.rs` | 两处硬编码 `"workdsh"` | **v1.5 改为读 `PROFILE_NAME` 常量**，不再硬编码 |
+| `enterprise_auth.rs` | 代理外部后台账号密码登录 | 改为 key 登录 + 本地 SQLite 快照；协作/插件代理保留 —— **v1 延后**（无服务端，模块保留不启用） |
+| 新增 `entitlement` 模块 | — | keychain 存 key、`entitlement.db` 存快照、`FREE_KEYS` 白名单 + `can_access` 命令。**v1 只落地 `can_access` 单一出口 + `LocalEntitlement`（全 Granted）**，快照与 keychain 延后 |
 | profile 内新增 quant 工作区 | 无 | 数据中枢/策略工坊/交易台/智能体的 UI 与本地服务（见 §6） |
-| 菜单与载体页 | 已完成 QuantDSH 文案 | 增加「量化工作台」入口组与"已订阅/未订阅"状态展示 |
+| 菜单与载体页 | 已完成 QuantDSH 文案 | 增加「量化工作台」入口组；订阅状态展示随服务端延后，v1 不出现 |
 
 ### 5.3 产品 UI 地图（客户端侧导航）
 
@@ -844,22 +894,34 @@ org.user.<32 字节随机 hex>
 ```
 
 **UI 与门禁的耦合规则**：未授权的导航项**显示但置灰并给出原因**（比隐藏更可理解），`trade.live` 类敏感项默认完全隐藏直到被授予。
+> v1 无服务端、全功能可用，此规则**暂不生效**；但导航项的显隐/置灰必须走 `can_access` 查询而非硬编码，接服务端后自动生效。
 
 ### 5.4 本地存储布局
 
 ```
-%APPDATA%\WorkDSH\profiles\workdsh\          ← 沿用既有 profile（不新建）
-  quant\                                     ← 量化命名空间（与其它工作数据隔离）
-    entitlement.db                           SQLite：授权快照（可从服务端重建）
-      ├─ entitlement_cache                   签名 JWS 原文 + 验签状态（schema 见 §5.5）
-      ├─ clock_guard                         last_seen_server_time（单调时钟护栏，§3.8 L3）
+%APPDATA%\QuantDSH\                            ← 数据根（v1.5 改名）
+  profiles\quantdsh\                           ← 运行时 profile（运行时契约目录，不混业务数据）
+  dsh-home\                                    ← DSH home
+  quant\                                       ← 量化数据根（**v1.5 修正：从 profile 内移出**）
+    entitlement.db                             SQLite：授权快照（可从服务端重建；v1 不创建）
+      ├─ entitlement_cache                     签名 JWS 原文 + 验签状态（schema 见 §5.5）
+      ├─ clock_guard                           last_seen_server_time（单调时钟护栏，§3.8 L3）
       └─ device_id / key 引用（明文 key 仅存 OS 凭据库）
-    lake\                                    DuckDB + Parquet：bronze（原始不可变）/ silver（清洗对齐）
-      └─ secure\                             **加密派生数据集**（§3.8 L4），密钥不落盘
-    memory\                                  SQLite：本地智能体记忆（订阅用户与服务端同步）
-    workspace\                               会话、报告、产物、血缘 provenance.json
-    logs\                                    运行留痕、审计底账（清理列表不得删除）
+    catalog.duckdb                             DuckDB：视图 + 元数据 + 因子/回测结果
+    lake\                                      Parquet：bronze（原始不可变）/ silver（清洗对齐）
+      └─ secure\                               **加密派生数据集**（§3.8 L4），密钥不落盘（v1 不创建）
+    jobs.sqlite                                任务队列（因子挖掘/批量回测），可断点续跑
+    memory\                                    SQLite：本地智能体记忆（订阅用户与服务端同步）
+    workspace\                                 会话、报告、产物、血缘 provenance.json
+    logs\                                      运行留痕、审计底账（清理列表不得删除）
 ```
+
+> **为什么从 `profiles\quantdsh\quant\` 移到 `%APPDATA%\QuantDSH\quant\`（v1.5 修正）**：`profiles\<name>` 是 DSH 运行时的装配目录，
+> 会被 profile 更新/重装重置，且内部有 `node_modules` 等运行时资产。把 GB 级数据湖放进去，一次 profile 重装就可能带走数据。
+> 独立成 `quant\` 后，数据与运行时解耦，位置仍可配置。
+>
+> **v1 实际创建的**：`quant\catalog.duckdb`、`quant\lake\`、`quant\jobs.sqlite`、`quant\workspace\`、`quant\logs\`。
+> `entitlement.db` 与 `lake\secure\` 依赖服务端，随服务端一并延后。
 交易所密钥 → **OS 凭据库**，不落磁盘明文。
 
 ### 5.5 授权缓存 schema 与既有登录的衔接
@@ -905,21 +967,21 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 
 | 层 / 子系统 | 职责（一句话） | 主要门禁键 |
 |---|---|---|
-| **Layer 0 · 桌面底座** | 托管 `workdsh` profile、量化命名空间、离线优先、入口与菜单、更新与回滚；**运行时契约一律不动** | `core.app` |
+| **Layer 0 · 桌面底座** | 托管 `quantdsh` profile、量化数据根、离线优先、入口与菜单、更新与回滚；**标识一致（v1.5 全量改名）** | `core.app` |
 | **数据中枢 Data Hub** | 连接器 → bronze → silver → DuckDB；增量同步与任务账；加密专属数据；PIT vintage；本库预览 | `data.hub`、`data.crypto-native` |
 | **策略工坊 Strategy Workshop** | 因子库与评估 → 生命周期与血缘 → 回测（成本/crypto 补完）→ 结果工作台 → 质量闭环 | `research.*`、`quality.monitor` |
 | **交易台 Trading Desk** | 适配层（首版 Binance + OKX）→ Preflight → 仿真 / 实盘 → 成交与费用口径 → 性能归因 | `trade.*`、`analysis.performance` |
 | **投研智能体 Quant Agents** | 对话入口 + Skill/Expert/Team 三级模型；多智能体流水线；记忆与反思；研发闭环 | `research.agents*`、`research.automl` |
 | **协作与资产** | 团队共享区、发布与市场、可复现包、会话生命周期 | `team.collab`、`market.publish`、`notify.alerts` |
 
-> Layer 0 的六项（profile 托管、数据根目录、本地/离线优先、入口与菜单、更新与回滚、契约保持）分散在 §6.1 与 §5.2，
+> Layer 0 的六项（profile 托管、数据根目录、本地/离线优先、入口与菜单、更新与回滚、标识一致性）分散在 §6.1 与 §5.2，
 > 不再单列一张表——它们是**约束**而非可裁剪功能。
 
 ### 6.1 数据与底座
 
 | 功能 | 门禁键 | 来源 | 优先级 |
 |---|---|---|---|
-| 沿用 `workdsh` profile 扩展 quant 工作区、独立数据命名空间、离线优先 | `core.app` | [O] | P0 |
+| 沿用 `quantdsh` profile 扩展 quant 工作区、独立数据根、离线优先；**全量改名为 QuantDSH 标识**（§2.4） | `core.app` | [O] | P0 |
 | 多源连接器框架：`DataSource` trait + 按 market 注册 + **失败软着陆**（首版 **Binance + OKX**） | `data.hub` | [D] | P0 |
 | 本地数据湖：Parquet + DuckDB，bronze→silver 分层 | `data.hub` | [M][O] | P0 |
 | 本库预览：来源、日期范围、表格预览（**只读视图，不是第二份存储**） | `data.hub` | [QS] | P1 |
@@ -933,7 +995,7 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 | 更新与回滚（新版本独立目录验证后切换、失败自动回滚） | `core.app` | [QS] | P1 |
 | 标的符号表与合约元数据（交易所/到期/乘数/tick） | `data.hub` | [D] | P0 |
 | **免费额度按币种切分**：`FREE_SYMBOLS` 常量（离线）+ 服务端下发签名 `symbol_scope`；闸门在**数据入口**（连接器/同步/回测/仿真），UI 仅提示（§3.7） | `data.hub` | [O] | P0 |
-| **授权完整性**：签名快照（Ed25519）+ fail-closed + 单调时钟 + 吊销增量 + 设备绑定；**判定下沉 native**（§3.8 L1–L3、L6） | `core.app` | [O] | P0 |
+| **授权接缝（v1 口径）**：`can_access(feature_key)` 单一出口 + `LocalEntitlement`（全 Granted）+ 19 个 key 常量 + `scope_for` 调用点；判定下沉 native、web profile 内不出现 feature_key（§3.8 L1）。**签名快照 / 时钟护栏 / 吊销 / 设备绑定随服务端延后** | `core.app` | [O] | P0 |
 | **有状态任务必须单 worker**（job 状态不跨进程，否则日志/状态 404） | `core.app` | [M][D] | P0 |
 | **内部回调 secret 生产环境 fail-closed**（缺失直接拒绝启动） | `core.app` | [M] | P0 |
 
@@ -950,13 +1012,15 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 | **K 线内部路径推断**（阳线 O→L→H→C、阴线 O→H→L→C），无 tick 时判定止损/止盈谁先触发 ⭐ | `research.backtest` | [D] | P0 |
 | **信号周期 × 成交周期分离**：自动选精度（≤30 天用 1m、≤1 年用 5m、更久拒绝高精度）；**高精度仅 crypto 开放** ⭐ | `research.backtest-pro` | [D] | P0 |
 | 因子执行结果缓存（命中 md5(源码) 直接复用，不重跑） | `research.factor` | [M] | P1 |
-| 沙箱：AST + 正则静态校验 + 子进程超时/内存限制（**Windows 不支持 signal，须用子进程方案**） | `research.factor` | [D][O] | P1 |
+| **因子表达式校验**：受限 SQL 模板 + AST 白名单（禁子查询/JOIN）+ 函数白名单 + 强制 `PARTITION BY symbol` + `lag/lead` 偏移量必须为常量 | `research.factor` | [D][O] | P0 |
 | 错误脱敏（绝对路径替换）+ 超长截断（头尾各保留），护隐私且控 LLM token | `research.agents` | [M] | P1 |
 | 组合优化与风控（约束优化、Sharpe/Sortino/回撤/β） | `research.backtest` | [O][D] | P1 |
 | 结果工作台（报告/表格/代码并排核对、AI 建议参数调整） | `research.backtest` | [QS][D] | P1 |
 | **策略构建**：规则 / ML / 混合；参数空间与超参搜索；**walk-forward** 分段验证 | `research.backtest` | [M][O] | P1 |
 | 跨资产规则插件位（涨跌停/停牌/整手/T+1，为 A 股期货预留） | `research.backtest` | [M] | P2 |
-| **因子自主进化**（假设→公式合成→遗传演化→入库）⭐ | `research.automl` | [M] | P2 |
+| **自动因子挖掘**（闭环：候选提案 → 校验 → 计算 → 评估 → 去重 → 筛选 → 变异；SQLite 任务表断点续跑；LLM 只提案不判分）⭐ | `research.factor-automine` | [M][O] | P0 |
+| **挖掘防自欺**（walk-forward 分段 + 多重检验惩罚 deflated Sharpe + PIT universe + 候选池与算力预算 + 相关性去重阈值 0.7）⭐ | `research.factor-automine` | [O] | P0 |
+| **因子自主进化**（遗传演化扩展，建立在自动挖掘之上） | `research.automl` | [M] | P2 |
 | 模型工场与集成（`ModelAdapter` 接口） | `research.automl` | [M] | P2 |
 | **生产质量闭环**：Rank IC/ICIR 回填 + SHAP + PSI 双通道告警 ⭐ | `quality.monitor` | [M] | P2 |
 
@@ -1104,11 +1168,16 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 ## 10. 路线图
 
 > 已确认的启动方式：**契约优先**（先定稿 API / token / 表结构，再并行实现两端）。
-> 决策已并入下表：`workdsh` profile 扩展 · 免费 + 订阅分层 · 服务端托管共享区 · Binance + OKX · **一个用户单组织** · 不做按次计量 · 不处理 license · **免费额度按币种切** · **无 trial** · **席位到期立即失效** · **防破解设计（代码公开）**。
+> 决策已并入下表：`quantdsh` profile 扩展 · 免费 + 订阅分层 · 服务端托管共享区 · Binance + OKX · **一个用户单组织** · 不做按次计量 · 不处理 license · **免费额度按币种切** · **无 trial** · **席位到期立即失效** · **防破解设计（代码公开）** · **全量改名 QuantDSH（不兼容旧版）**。
+>
+> **v1.5 实施节奏（当前执行顺序）**：先做完**纯客户端**的 v1，服务端整体延后到 v1 之后。
+> 服务端相关的项（key 登录、签名快照、席位、订阅与支付、团队共享区、实盘票据）这一轮**全部不写代码**，
+> 但接口接缝必须留（§2.4 / §3.4 / 配套文档 §2）——判断标准是"接服务端时不改调用方"。
 
 | 阶段 | 目标 | 交付物 | 完成判定（DoD） |
 |---|---|---|---|
-| **P0 · 契约与骨架** | 两端有共同语言；**免费闭环能离线跑通** | 契约定稿（§3.3 的 18 项 key + §4.3 DDL + §4.4 路由）；服务端最小集（账号/组织/用户/团队/授权/席位/Key/verify/审计/**吊销增量/设备绑定/签名密钥**）；（`users.org_id` 单值、email 全局唯一）；客户端 key 登录 + SQLite 快照 + `FREE_KEYS` + `can_access` 单测；**授权完整性基线（§3.8 L1–L3、L6）**：Ed25519 验签 + fail-closed + 单调时钟 + 判定下沉 native；**额度按币种**（§3.7）：`FREE_SYMBOLS` + 服务端下发 `symbol_scope`，闸门在连接器/同步/回测/仿真入口；profile 内 quant 工作区与 `quant\` 命名空间；Data Hub **Binance + OKX**（基础行情 → DuckDB）；基础回测（费/滑/杠杆 + **K 线内部路径推断**）；因子评估（**五元组建模**）；Preflight + 仿真；Skill/Expert/Team 与对话入口 | 不登录、断网状态下仍能跑通"取数→回测→仿真"；持有 key 时订阅功能出现；`can_access` 单测覆盖隐含前置、**权益到期逐秒失效**、席位释放、快照过期；**篡改快照任一字节即 fail-closed**；系统时间回拨无法让过期权益复活；**同一邮箱无法被第二个组织再拉入** |
+| **v1 · 客户端闭环**（优先执行） | 单机全功能可用，不依赖任何服务端 | 全量改名为 QuantDSH 标识（§2.4）；`can_access` 接缝 + `LocalEntitlement` + 19 个 key 常量 + `scope_for` 调用点；Rust 引擎 sidecar（DuckDB + Binance/OKX）；quant 工作区与 `%APPDATA%\QuantDSH\quant\` 数据根；因子表达式校验 + 因子评估 + 回测 + 仿真；**自动因子挖掘（含防自欺）**；Skill/Expert/Team 与对话入口；slots 面板 | 装机即可用，**无需登录、断网可用**；"取数 → 挖因子 → 回测 → 仿真"一条链路跑通；把任一 key 从 `LocalEntitlement` 移除后对应入口即失效（验证接缝有效） |
+| **P0 · 服务端骨架与两端联调**（v1 之后） | 两端有共同语言 | 契约定稿（§3.3 的 19 项 key + §4.3 DDL + §4.4 路由）；服务端最小集（账号/组织/用户/团队/授权/席位/Key/verify/审计/**吊销增量/设备绑定/签名密钥**）；`users.org_id` 单值、email 全局唯一；客户端 key 登录 + SQLite 快照，`LocalEntitlement` 换 `ServerEntitlement`；授权完整性基线（§3.8 L1–L3、L6）；额度按币种（§3.7）：`FREE_SYMBOLS` + 服务端下发 `symbol_scope` | 不登录、断网状态下仍能跑通"取数→回测→仿真"；持有 key 时订阅功能出现；`can_access` 单测覆盖隐含前置、**权益到期逐秒失效**、席位释放、快照过期；**篡改快照任一字节即 fail-closed**；系统时间回拨无法让过期权益复活；**同一邮箱无法被第二个组织再拉入** |
 | **P1 · 订阅闭环与生产投研** | 从"能研究"到"研究可积累、订阅可交付" | **官网套餐与支付闭环**（`/plans`、`/orders`、幂等回调 → 激活订阅、`auto_renew`）；API Key 轮换/吊销/默认初始化；实盘 opt-in（**仅限 Binance + OKX**，Preflight 守门 + **在线票据 §3.8 L5**）；`research.*-pro` 三件套（crypto 成本补完+mtf、因子生命周期血缘、多智能体流水线 + 记忆反思含服务端两 API）；`data.crypto-native`；**服务端供给型数据的加密下发（§3.8 L4）**；严格费用口径与性能归因；PIT 时点数据；**服务端托管的团队共享区** + 席位管理；（v1.1 明确）**订阅权益判定不含计量与账单** | 换一枚已占席的 key 后功能集合正确变化；释放席位后下次刷新权益被裁剪；**到期时刻到点的前后各一次调用结果正确**；同一研究可被他人一键复现；实盘只能经 Preflight + 显式开关 + 有效票据进入 |
 | **P2 · 生产化与生态** | 长期有效性、多资产、生态 | 统一做**免费 / 订阅的功能切分与套餐定价**（v1.3 决策 B）；质量闭环（IC/SHAP/PSI）；因子自主进化；研发闭环 Trace；模型工场；多资产扩展（A 股/期货/美股 + IBKR/MT5 形态）；策略与因子市场 + 可复现发布；Work 办公；团队告警 | 因子上线后有持续有效性监控与漂移告警；新资产类别可在不强改内核前提下接入；**切分上线只改套餐配置与一处常量，功能代码零改动** |
 
@@ -1118,7 +1187,10 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 **口径映射**：原功能附录用的是 **MVP / v1 / v2**，与 **P0 / P1 / P2** 同义，本文统一用 P0/P1/P2。
 若有冲突（例如早期把"crypto 回测补完"列为 MVP、把企业版列为 v1），**以本表为准**。
 
-**P0 内部的交付顺序**（契约优先）：契约定稿 → 服务端骨架 → 客户端 key 登录 + `can_access` → 授权完整性 → 联调回归（详见 §4.6）。
+**v1 内部交付顺序**（当前执行）：常量收敛 → 全量改名 → profile fork 进仓库 → 引擎 sidecar 起步（DuckDB + 单交易所）→ 数据湖与 silver 层 → 因子校验与评估 → 回测 → 自动因子挖掘 → 仿真 → slots 面板。
+每一步的验收见 `QUANTDSH_V1_IMPLEMENTATION.md` §9。
+
+**P0 内部交付顺序**（v1 完成后，契约优先）：契约定稿 → 服务端骨架 → 客户端 key 登录 + `LocalEntitlement` 换 `ServerEntitlement` → 授权完整性 → 联调回归（详见 §4.6）。
 
 ---
 
@@ -1131,7 +1203,7 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 | 3 | **订阅权益误判** | 中 | 权益判定单一出口：`can_access` = 免费白名单 ∪ 服务端签名快照；服务端/客户端两侧各留一组回归用例（席位释放、权益到期、key 吊销、快照过期） |
 | 4 | **免费功能被误锁** | 中 | 免费项走客户端内置白名单，**不依赖任何快照与网络**；离线自测必须包含"无 key 启动"场景 |
 | 5 | **IM 推送安全** | 中 | 远期若做 IM，须先补鉴权、源 IP 限制与凭据隔离，不可照搬"免登录对外端口" |
-| 6 | **运行时契约被破坏** | 中 | `workdsh://`、`workdsh.localhost`、`workdsh-runtime`、`workdsh-*`、`runtime_pack::PRODUCT="WorkDSH"`、`%APPDATA%\WorkDSH` 一律不动 |
+| 6 | **改名遗漏（成对引用未同步）** | 中 | 改名后装包报"运行时缺失"或部署配置读不到。对策：常量收敛 + `verify:packaged` 全量校验 + 装包冒烟测试；资源目录与配置文件名必须**成对改**（`tauri.conf.json` ↔ `runtime_pack.rs` ↔ `paths.rs`），清单见配套文档 §1 |
 | 7 | 第三方代码来源与商标 | 低（用户已决定暂不处理） | 三条事实约束：① **QuantMind（AGPL v3）不复制、不翻译源码**，只用文档级工程范式；② **不使用 QuantDinger 名称/Logo**，保留其 LICENSE/NOTICE 与署名（Apache 2.0 义务）；③ QuantStudio 技能包自带**独立 LICENSE**，如需引入须逐项核实。见 §8.4 |
 | 8 | **授权被伪造 / 篡改（代码公开）** | **高** | §3.8 整套措施：签名快照 fail-closed、判定下沉 native、**高价值数据放服务端并加密下发**、实盘在线票据、吊销增量与设备绑定。**且不追求"无法绕过"**——目标是篡改成本高于订阅价 |
 | 9 | **防破解反噬（误伤付费用户 / 被当恶意软件）** | 中 | §3.8 公司红线：不做侵入式 DRM、不采集无关隐私；期末降级语义明确（除实盘外不许因断网禁用已付功能）；任何封禁可由管理员复核撤销 |
@@ -1142,7 +1214,7 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 
 ## 12. 决策台账状态
 
-> 12.0 是**累计总表**（仍在生效的全部决策）；12.1–12.3 是**各轮并入时的流水**，编号按并入先后而非版本序（v1.1 → v1.3 → v1.2）。
+> 12.0 是**累计总表**（仍在生效的全部决策）；12.1–12.5 是**各轮并入时的流水**，编号按并入先后而非版本序（v1.1 → v1.3 → v1.2 → v1.4 → v1.5）。
 
 ### 12.0 全部锁定决策（v1.0 起累计，仍在生效）
 
@@ -1150,15 +1222,16 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 
 | # | 议题 | 结论 | 状态 |
 |---|---|---|---|
-| Q1 | 数据目录 | `%APPDATA%\WorkDSH\profiles\workdsh\quant\`（量化命名空间），位置可配置，不动 `%APPDATA%\WorkDSH` 根 | **v1.1 修订**：原 `profiles\quantdsh` 作废 |
+| Q1 | 数据目录 | `%APPDATA%\QuantDSH\quant\`，位置可配置，不动 `%APPDATA%\QuantDSH` 根 | **v1.5 修订**：v1.1 的 `profiles\workdsh\quant\` 作废（数据与 profile 解耦，profile 重装不带数据） |
 | Q2 | 能力参考来源 | QuantDinger 作**结构形态主参考**；QuantStudio 取概念与严谨口径；QuantMind 取工程范式 | v1.2 起**不设许可门禁**（§8） |
 | Q3 | 首版资产类别 | **加密货币**优先（24/7、公开 API 丰富、契合本地数据湖） | 有效 |
 | Q4 | 交易形态 | **仿真 + 实盘同步**；实盘默认关闭 + 显式 opt-in + Preflight 守门 + 可按地区/构建关闭 | 有效，v1.3 追加在线票据 |
-| Q5 | profile 命名 | 内部沿用 `workdsh` profile，对外品牌 **QuantDSH 量化工作台** | **v1.1 修订**：原"新建 `quantdsh` profile"作废 |
+| Q5 | profile 命名 | profile 名随品牌统一改为 `quantdsh`（仍是**扩展同一个 profile**，不新建独立 profile） | **v1.5 修订**：v1.1 的"内部沿用 workdsh"作废，见 §2.4 |
 | Q6 | Preflight Check | 启动前自检（凭据/余额/网络/时钟/合约/额度/参数），不过不启动 | 有效 |
 | Q7 | 记忆增强 + 反思闭环 | 本地 SQLite + 打分公式 + 自动反思 worker + 手动复盘；服务端 `/api/agent/memory`、`/api/agent/reflect` | 有效 |
 | Q8 | 质量闭环 | 每日 Rank IC/ICIR 回填 + SHAP 重要性 + PSI 双通道告警（crypto 用截面 IC 口径） | 有效 |
 | Q9 | 回测 crypto 补完 | 资金费率 / 期现基差 / 逐仓全仓保证金 / 强平与结算 | 有效 |
+| Q10 | **自动因子挖掘** | 策略工坊内置闭环：候选提案 → 校验 → 计算 → 评估 → 去重 → 筛选 → 变异；**LLM 只提案与解释，不参与打分与入选决策**；必须支持断点续跑（DSH 的 jobs 不持久） | **v1.5 新增**（`research.factor-automine`）；实现见配套文档 §6 |
 
 **企业侧 10 项**
 
@@ -1168,12 +1241,16 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 | E2 | 鉴权 | 新建服务端；账号密码只在服务端；客户端**只认 key** |
 | E3 | 组织粒度 | 官网建组织、加用户、建团队；成员在官网申请 key；客户端用 key 登录 |
 | E4 | 管理 UI | 在**官网网页**，不在客户端 |
-| E5 | 交付范围 | 客户端 + 服务端**一起交付** |
+| E5 | 交付范围 | 客户端 + 服务端**分阶段交付** —— **v1.5 修订**：先交付纯客户端（全功能可用、无需服务端），服务端随后接入 |
 | E6 | 服务端归属 | **新建独立服务**（独立仓库/技术栈），与既有后台解耦 |
 | E7 | 离线强制 | **本地优先**：无网按签名快照门禁，联网后刷新校验 |
 | E8 | key 形态 | **结构化 token** `org.user.<32B hex>`，服务端只存 `sha256` |
 | E9 | 技术栈 | **Rust + Axum + SQLite**（§4.6） |
 | E10 | 启动方式 | **契约优先**：先定稿 API / token / 表结构，再并行实现两端 |
+
+> **v1.5 节奏说明**：E2 / E3 / E4 / E7 / E8 / E10 描述的是**接服务端之后**的形态，v1 一律不实现；
+> 而 E1 的"客户端授权缓存 SQLite"与 E7 的"本地优先"在 v1 已体现为 `can_access` 单一出口 + `LocalEntitlement`（§3.4）。
+> 判断标准：**接服务端时不改调用方**——做到这点，E 组决策就算被"延后但保住"了。
 
 ### 12.1 第二轮已拍板（v1.1，六项，已并入全文）
 
@@ -1184,7 +1261,7 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 | 3 | 团队共享区 | **服务端托管**（§2.3 / §4.1） |
 | 4 | 商业模式 | **个人版基础上发展**：免费起步 + 订阅解锁；订阅分**个人订阅**与**团队席位订阅**；**具体切法延后统一规划**（§3.5 / §5.1 / §12.2） |
 | 5 | 首版交易所 | **Binance + OKX**（§6.3 / §10） |
-| 6 | 技术基座 | **沿用 `workdsh` profile 扩展 quant 工作区**，不新建 profile、不改 `PROFILE_NAME`（§2.1 / §5.2） |
+| 6 | 技术基座 | **扩展同一个 DSH 运行时 profile**，profile 名改为 `quantdsh`；不新建独立 profile（§2.1 / §5.2），改名清单见 §2.4 |
 
 ### 12.2 第四轮已拍板（v1.3，已并入全文）— **进入开发前的待定项已清空**
 
@@ -1210,10 +1287,23 @@ key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
 | `QUANTDSH_QUANT_PLAN.md`（功能模块附录） | 子系统视角 → §6.0；功能明细与来源标记 → §6.1–§6.5；能力横评 → §8.3；9 项决策 → §12.0；阶段口径 → §10 | **已删除** |
 | `QUANTDSH_REFERENCE_RESEARCH.md`（调研附录，更早） | 结论与借鉴清单 → §8；细节留在内部调研笔记（不发布） | 更早已转为本地文件 |
 
-> 合并时修掉的三处矛盾：`profiles\quantdsh` → `profiles\workdsh\quant\`；客户端授权缓存 DuckDB → **SQLite**；`/api/org/*` → §4.4 的 `/api/orgs/:id/*`。
+> 合并时修掉的三处矛盾：`profiles\quantdsh` → `profiles\workdsh\quant\`（**v1.5 再次调整为 `%APPDATA%\QuantDSH\quant\`**）；客户端授权缓存 DuckDB → **SQLite**；`/api/org/*` → §4.4 的 `/api/orgs/:id/*`。
+
+### 12.5 第五轮已拍板（v1.5，已并入全文）
+
+| # | 议题 | 结论 | 落点 |
+|---|---|---|---|
+| A | **品牌与运行时标识** | **全量改名 QuantDSH**（协议 / host / 资源目录 / 环境变量 / 数据根 / profile 名 / npm 包 / 产品常量），**不考虑兼容性、不写数据迁移** | §2.4；22 项 carrier + 8 项 profile 清单见配套文档 §1 |
+| B | **服务端节奏** | **暂时不做服务端**，先完成客户端功能开发，之后再接。≠ 取消设计：`can_access` 单一出口、19 个 key 常量、`scope_for` 调用点、服务端契约（§4）全部保留 | §3.4「v1 实现」/ §10 v1 行 / §12.0 E5 修订 |
+| C | **技术栈** | **尽量 Rust**：引擎独立 sidecar（DuckDB + arrow/parquet + axum），TS 插件只做 tool 转发与 UI；**不用 Python**（DSH 的 Python 后端 Windows 不支持） | §2.2 / §5.1 / §6.0；配套文档 §3 |
+| D | **策略工坊扩展** | 新增**自动因子挖掘**（闭环状态机 + 防自欺校验；LLM 只提案不判分） | §6.2 / §12.0 Q10；配套文档 §6 |
+| E | **数据根位置** | `%APPDATA%\QuantDSH\quant\`，从 `profiles\quantdsh\` 内**移出**（profile 重装不带数据湖） | §2.3 / §5.4；§12.0 Q1 修订 |
 
 ---
 
 > **§12.2 已无待定项**，设计阶段的开放问题全部关闭。
-> 可即按 §10 的 P0 开工：**契约 → 客户端 key 登录 + `can_access`（native 判定）+ 免费白名单 + 签名快照 → 服务端最小集（含吊销/设备/签名密钥）→ 免费额度按币种 → quant 工作区（Binance/OKX → DuckDB → 基础回测 → 仿真）**。
+> **当前执行顺序（v1.5）**：按 §10 的 **v1 · 客户端闭环** 开工，不再等"两端一起"：
+> **常量收敛 → 全量改名 → profile fork 进仓库 → 引擎 sidecar 起步（DuckDB + 单交易所）→ 数据湖与 silver 层 → 因子校验与评估 → 回测 → 自动因子挖掘 → 仿真 → slots 面板**。
+> 服务端（key 登录 / 签名快照 / 席位 / 订阅支付 / 团队共享区 / 实盘票据）整体延后到 v1 之后，但接缝必须在 v1 就留好。
 > 唯一延后到 P2 的是**免费 / 订阅的功能切分**——按你的决定，等功能做完整后再统一规划。
+> 实现细节与每步验收见 `QUANTDSH_V1_IMPLEMENTATION.md`。
