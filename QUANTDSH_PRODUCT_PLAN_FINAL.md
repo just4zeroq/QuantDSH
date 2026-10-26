@@ -1,7 +1,15 @@
 # QuantDSH 产品方案（终版）
 
-> **版本**：FINAL **v1.3** · 2026-10-26（v1.2 基础上吸收第四轮决策：免费额度口径、试用、席位失效语义、**代码公开前提下的防破解授权设计**）
-> **地位**：本文档是 QuantDSH **整体产品的单一事实来源**，收编并取代此前三份规划的决策汇总地位。
+> **版本**：FINAL **v1.4（合并版）** · 2026-10-26
+> **地位**：本文档是 QuantDSH **整体产品的单一事实来源**。原「企业契约附录」（`QUANTDSH_ENTERPRISE_PLAN.md`）与「功能模块附录」（`QUANTDSH_QUANT_PLAN.md`）已**全文并入**本文，两份文件已删除。
+>
+> ### v1.4 变更（三份方案合并为一份）
+> | # | 动作 | 结果 | 落点 |
+> |---|---|---|---|
+> | A | 并入企业契约附录 | 服务端技术栈、**基础四表 DDL**（`orgs`/`teams`/`team_memberships`/`access_keys`）、客户端缓存 schema、实现顺序全部上收 | §4.3 / §4.6 / §5.5 |
+> | B | 并入功能模块附录 | 19 项已锁定决策（量化 9 + 企业 10）、子系统职责、能力横评、`MVP/v1/v2` → `P0/P1/P2` 口径映射 | §6.0 / §8.3 / §10 / §12.0 |
+> | C | 消解三处文档间矛盾 | ① 数据目录统一 `profiles\workdsh\quant\`（早期 `profiles\quantdsh` 作废）② 授权缓存统一 **SQLite**（早期附图误写 DuckDB）③ 路由统一以 §4.4 为准（早期 `/api/org/*` 作废） | §2.3 / §5.4 / §4.6 |
+> | D | 补齐遗漏功能行 | 策略构建（walk-forward）、运行留痕与审计、本库预览 | §6.1–§6.5 |
 >
 > ### v1.3 变更（第四轮拍板）
 > | # | 议题 | 结论 | 影响面 |
@@ -16,24 +24,23 @@
 > | # | 议题 | 结论 | 影响面 |
 > |---|---|---|---|
 > | A | **组织成员关系** | **一个用户只属于单组织**（`users.org_id` 非空单值），不做多组织切换，多组织永久移除出待定项 | §4.3 增加单组织约束；§3 授权求解简化；§12.2 第 5 项关闭 |
-> | B | **调研口径** | **调研不再设开源许可门禁**：三家参照的功能、代码结构、商业模式一律完整调研；许可证仅作事实记录，不作为借鉴前置条件 | §8 由"许可证屏障"改为"借鉴策略 + 事实记录"；调研附录升级为 v2 |
+> | B | **调研口径** | **调研不再设开源许可门禁**：三家参照的功能、代码结构、商业模式一律完整调研；许可证仅作事实记录，不作为借鉴前置条件 | §8 由"许可证屏障"改为"借鉴策略 + 事实记录"；调研结论并入 §8.1–§8.3 |
 > | C | **商业模式纳入规划** | 在企业/权益模型之外，补齐**订阅套餐、支付闭环、key 生命周期、增长回路**的参考结论 | §1.4 新增商业化机制；§4 新增套餐与支付契约 |
 >
 > ### v1.1 决策（第二轮六项拍板，继续有效）
 > | # | 议题 | 结论 | 影响面 |
 > |---|---|---|---|
-> | 1 | 开源许可证 | **暂不处理**（后续如需对外分发再评估） | 许可证不再参与任何技术取舍；仅在 §8.3 留事实记录 |
+> | 1 | 开源许可证 | **暂不处理**（后续如需对外分发再评估） | 许可证不再参与任何技术取舍；仅在 §8.4 留事实记录 |
 > | 2 | 计量 / 计费 | **暂不做**，只做"订阅权益判定"，不引入计量与账单 | §4 移除计费模块 |
 > | 3 | 团队共享区 | **服务端托管** | §2.3 / §4 锁定 |
 > | 4 | 版本与商业模式 | **在个人版基础上发展**：部分功能免费、部分需订阅 key；**订阅分为个人订阅与团队订阅** | §1.4 / §3.5 / §3.6 / §5.1 重写 |
 > | 5 | 首版交易所 | **Binance + OKX** 两家 | §3.3 / §6.3 / §10 收敛 |
 > | 6 | 技术基座 | **沿用既有 DSH 运行时 profile（`workdsh`）扩展**，不另起 `quantdsh` profile | §2.1 / §5.2 / §5.4 修订（原 v1.0 的 profile 切换改造取消） |
 >
-> 除上述六点外，v1.0 已锁定的决策（量化 9 项 + 企业 10 项）**继续有效**。
-> - `QUANTDSH_QUANT_PLAN.md` —— 降为**功能模块附录**（详细三级菜单与来源标记）
-> - `QUANTDSH_ENTERPRISE_PLAN.md` —— 降为**企业契约附录**（SQLite DDL / token / 路由细节）
-> - `QUANTDSH_REFERENCE_RESEARCH.md` —— 降为**调研附录（v2）**：三家参照的完整功能清单 + **代码级实现要点** + **商业模式调研**。许可证仅作事实记录，不作借鉴门禁
-> - 三者内容仍然有效；与本文冲突时**以本文为准**。
+> 除上述六点外，v1.0 已锁定的决策（量化 9 项 + 企业 10 项）**继续有效**，逐条见 §12.0。
+>
+> **文档形态（v1.4）**：本文是唯一的产品方案文件。服务端契约细节在 §4（含 15 张表的完整 DDL、路由、token），
+> 客户端契约细节在 §5（命名空间、缓存 schema、旧登录衔接），功能全集在 §6。三家参照的调研与上游对照属内部资料，不随仓库发布。
 >
 > **本轮范围**：产品方案设计，不涉及代码实现。
 
@@ -172,7 +179,8 @@
 | **企业授权区** | 同一 profile 下的 `entitlement.db` | SQLite | `{user, org, teams, grants}` 快照 + 拉取时间 | 服务端派生，本地缓存 |
 | **团队共享区** | 服务端 SQLite/对象存储 | Axum | 共享策略/因子/报告/发布物 + provenance | 组织/团队维度，按需拉取只读副本 |
 
-> 数据根目录沿用已确认决策：默认 `%APPDATA%\WorkDSH\profiles\quantdsh`，**位置可配置**；不改动 `%APPDATA%\WorkDSH` 根。
+> 数据根目录：`%APPDATA%\WorkDSH\profiles\workdsh\quant\`（v1.1 决定扩展既有 profile；早期 `profiles\quantdsh` 方案**已作废**），
+> **位置可配置**；不改动 `%APPDATA%\WorkDSH` 根。
 
 ### 2.4 运行时契约红线（不得改动）
 
@@ -504,6 +512,17 @@ sk = HKDF(shared = key_plaintext + server_random, info = dataset_id)   # 每次�
 `"$APPDATA%\WorkDSH\profiles\workdsh"` 下的数据命名空间也只需按 `org:user` 一级区分。
 
 ```sql
+-- ===== 基础四表：orgs / teams / team_memberships / access_keys =====
+-- users 紧随其后（引用 orgs，故 orgs 先建）
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE orgs (
+  id            TEXT PRIMARY KEY,            -- qo_<uuid>
+  name          TEXT NOT NULL,
+  owner_user_id TEXT NOT NULL,
+  created_at    INTEGER NOT NULL
+);
+
 -- 用户：org_id 非空且为单值，一个用户永不属于多个组织
 CREATE TABLE users (
   id            TEXT PRIMARY KEY,              -- qu_<uuid>
@@ -519,6 +538,39 @@ CREATE INDEX idx_users_org ON users(org_id);
 
 -- 若未来确需多组织，本表不动，改为新增 user_org_memberships 关联表；届时客户端
 -- entitlement 的 org 字段需从标量升级为列表并重做全链路，故首版明确锁定单组织。
+
+CREATE TABLE teams (
+  id           TEXT PRIMARY KEY,             -- qt_<uuid>
+  org_id       TEXT NOT NULL REFERENCES orgs(id),
+  name         TEXT NOT NULL,
+  description  TEXT NOT NULL DEFAULT '',
+  created_by   TEXT NOT NULL,
+  created_at   INTEGER NOT NULL,
+  UNIQUE(org_id, name)
+);
+
+CREATE TABLE team_memberships (
+  team_id   TEXT NOT NULL REFERENCES teams(id),
+  user_id   TEXT NOT NULL REFERENCES users(id),
+  role      TEXT NOT NULL DEFAULT 'member',  -- lead|member
+  joined_at INTEGER NOT NULL,
+  PRIMARY KEY (team_id, user_id)
+);
+
+-- 访问凭证：客户端凭此登录；明文只在核发响应里出现一次
+CREATE TABLE access_keys (
+  id           TEXT PRIMARY KEY,             -- qk_<uuid>
+  org_id       TEXT NOT NULL REFERENCES orgs(id),
+  user_id      TEXT NOT NULL REFERENCES users(id),
+  key_hash     TEXT NOT NULL,                -- sha256(plaintext)
+  label        TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT 'active', -- active|revoked
+  rotated_from TEXT,                         -- 轮换来源，用于审计"这枚 key 从哪来"
+  created_at   INTEGER NOT NULL,
+  last_used_at INTEGER,
+  expires_at   INTEGER                       -- key 自身有效期（与权益 expires_at 相互独立）
+);
+CREATE INDEX idx_keys_user ON access_keys(user_id);
 ```
 
 ```sql
@@ -657,7 +709,9 @@ CREATE INDEX idx_tickets_user ON execution_tickets(user_id, issued_at DESC);
 
 > **`symbol_scope` 必须放服务端下发**，不得硬编码进客户端；否则调整币种名单就要发新版（§3.7）。
 
-> 版本差异：`QUANTDSH_ENTERPRISE_PLAN.md` §10.2 的旧 DDL（`feature_grants` 仅 `team_id`）**已被本节取代**；其余五表不变。
+> 本节是**服务端数据模型的唯一来源**（原企业附录的 DDL 已全部并入，不再存在"另一份 DDL"）。共 **15 张表**：
+> `orgs` / `users` / `teams` / `team_memberships` / `access_keys` / `feature_grants` / `audit_log` /
+> `subscriptions` / `plans` / `payment_orders` / `seats` / `revocations` / `key_devices` / `signing_keys` / `execution_tickets`。
 
 ### 4.4 API 契约（汇总版）
 
@@ -722,6 +776,28 @@ org.user.<32 字节随机 hex>
 **四种用法都指向同一枚 personal key**：同一用户在不同机器上用同一枚 key；换机器/重装不丢权益（权益在服务端，不在本地）。
 团队订阅不发行"团队公共 key"——成员各用自己的 key 登录，靠**席位**继承团队权益，以便追责与吊销。
 
+### 4.6 服务端技术栈与实现顺序（契约优先）
+
+| 项 | 选定 | 理由 |
+|---|---|---|
+| 语言/框架 | **Rust + Axum**（Tokio 运行时） | 与 carrier 同语言，复用依赖与部署经验；单二进制易部署 |
+| 持久化 | **SQLite** + `sqlx`（`SqlitePool`，async，带迁移） | 目录与授权量级不需要独立数据库服务；迁移文件本身就是契约的一部分 |
+| 密码哈希 | `argon2`（备选 `bcrypt`） | 账号密码只存在于服务端；客户端不持有 |
+| key 存储 | `sha256(plaintext)`，明文仅核发响应出现一次 | 库泄露不等于 key 泄露（§4.5） |
+| 仓库 | **独立仓库**（建议 `quantdsh-enterprise-server`），与 `dsh-tauri` 解耦 | 两端节奏不同；CI 产出独立二进制/容器 |
+| 管理 UI | 官网网页（同仓 `frontend/`），只调 API | 管理界面不进客户端（§2.2 边界） |
+| 快照签名 | Ed25519（§3.8 L2），`signing_keys` 支持 `kid` 轮换 | 私钥加密托管，不落明文 |
+
+**实现顺序（两端并行）**
+
+1. **定稿契约**：§3.3（18 项 `feature_key`）+ §4.3（15 张表）+ §4.4（路由）+ §4.5（token 形态）。
+2. **服务端骨架**：迁移 + 路由 + 密码/key 哈希 + 最小管理 UI（组织、用户、团队、授权、席位）。
+3. **客户端**：key 登录 + SQLite 快照 + `FREE_KEYS` + `can_access`（native 判定）+ 单测（mock 服务端）。
+4. **授权完整性**：Ed25519 签发与验签、fail-closed、单调时钟护栏、吊销增量、设备绑定（§3.8 L1–L3）。
+5. **联调回归**：官网建组织/加人/建团队/分功能 → 客户端 key 登录 → 门禁生效 → 席位释放、key 吊销、权益到期各一条用例。
+
+> 早期草案里的 `/api/org/users`、`/api/org/teams`、`/api/keys/issue` 等路径**已被 §4.4 取代**，实现一律以 §4.4 为准。
+
 ---
 
 ## 5. 桌面客户端（QuantDSH）
@@ -742,7 +818,7 @@ org.user.<32 字节随机 hex>
 | 实盘 | 无 | `trade.live`（Preflight + opt-in + **在线票据**） | 同左 |
 | 换机/重装 | 不受影响 | 用同一枚 key 恢复权益（自助解绑一次） | 席位重分配后恢复 |
 
-> 这条设计的关键收益：**用户侧"先跑起来"零门槛，商业侧付费点全部落在生产与团队。
+> 这条设计的关键收益：**用户侧"先跑起来"零门槛，商业侧付费点全部落在生产与团队**。
 
 ### 5.2 客户端分层与改造点
 
@@ -775,7 +851,7 @@ org.user.<32 字节随机 hex>
 %APPDATA%\WorkDSH\profiles\workdsh\          ← 沿用既有 profile（不新建）
   quant\                                     ← 量化命名空间（与其它工作数据隔离）
     entitlement.db                           SQLite：授权快照（可从服务端重建）
-      ├─ entitlement_snapshot                签名后的 JWS 原文 + 验签状态
+      ├─ entitlement_cache                   签名 JWS 原文 + 验签状态（schema 见 §5.5）
       ├─ clock_guard                         last_seen_server_time（单调时钟护栏，§3.8 L3）
       └─ device_id / key 引用（明文 key 仅存 OS 凭据库）
     lake\                                    DuckDB + Parquet：bronze（原始不可变）/ silver（清洗对齐）
@@ -786,6 +862,37 @@ org.user.<32 字节随机 hex>
 ```
 交易所密钥 → **OS 凭据库**，不落磁盘明文。
 
+### 5.5 授权缓存 schema 与既有登录的衔接
+
+**缓存表**（`quant\entitlement.db`，`rusqlite`）——只存派生快照，**不存密码、不存 key 明文**：
+
+```sql
+CREATE TABLE entitlement_cache (
+  user_id             TEXT PRIMARY KEY,
+  org_id              TEXT NOT NULL,
+  payload             TEXT NOT NULL,   -- 签名 JWS 原文（§3.8 L2），解析后含 {user,org,teams[],grants[],symbol_scope}
+  signature           TEXT NOT NULL,
+  fetched_at          INTEGER NOT NULL,
+  must_refresh_before INTEGER            -- 超时则敏感权益降级（§3.8 L3）
+);
+
+CREATE TABLE clock_guard (               -- 单调时钟护栏（§3.8 L3）
+  id                    INTEGER PRIMARY KEY CHECK (id = 1),
+  last_seen_server_time INTEGER NOT NULL
+);
+```
+
+key 本体存 **OS 凭据库**，缓存里只有 `key_id` 引用。
+
+**与既有实现的衔接**
+
+| 现状 | 目标 |
+|---|---|
+| `enterprise_auth.rs` 走账号密码 → 外部后台 `/api/auth/login` | 改为**只认 key**：`POST /api/key/verify` 换签名快照；账号密码只存在于官网 |
+| `EnterpriseMember{ id, organizationId, role }` | 复用为快照字段来源（`verify` 直接返回等价结构 + `teams` + `grants`） |
+| 协作 / 插件代理（Authority loopback） | **保留**，只把鉴权来源从"账号密码会话"换成"key 会话" |
+| 客户端无授权判定 | 新增 `entitlement` 模块：keychain + `entitlement.db` + `FREE_KEYS` + `can_access` 命令（native，§3.8 L1） |
+
 ---
 
 ## 6. 功能模块全集（含门禁键与优先级）
@@ -794,6 +901,20 @@ org.user.<32 字节随机 hex>
 > **三家参照的功能、代码结构与商业模式一律完整参考**（不再因许可证做取舍，见 §8）。
 > 优先级：**P0** 首版必须 / **P1** 首个完整闭环 / **P2** 生产化与生态
 
+### 6.0 子系统视角（先看骨架，再看清单）
+
+| 层 / 子系统 | 职责（一句话） | 主要门禁键 |
+|---|---|---|
+| **Layer 0 · 桌面底座** | 托管 `workdsh` profile、量化命名空间、离线优先、入口与菜单、更新与回滚；**运行时契约一律不动** | `core.app` |
+| **数据中枢 Data Hub** | 连接器 → bronze → silver → DuckDB；增量同步与任务账；加密专属数据；PIT vintage；本库预览 | `data.hub`、`data.crypto-native` |
+| **策略工坊 Strategy Workshop** | 因子库与评估 → 生命周期与血缘 → 回测（成本/crypto 补完）→ 结果工作台 → 质量闭环 | `research.*`、`quality.monitor` |
+| **交易台 Trading Desk** | 适配层（首版 Binance + OKX）→ Preflight → 仿真 / 实盘 → 成交与费用口径 → 性能归因 | `trade.*`、`analysis.performance` |
+| **投研智能体 Quant Agents** | 对话入口 + Skill/Expert/Team 三级模型；多智能体流水线；记忆与反思；研发闭环 | `research.agents*`、`research.automl` |
+| **协作与资产** | 团队共享区、发布与市场、可复现包、会话生命周期 | `team.collab`、`market.publish`、`notify.alerts` |
+
+> Layer 0 的六项（profile 托管、数据根目录、本地/离线优先、入口与菜单、更新与回滚、契约保持）分散在 §6.1 与 §5.2，
+> 不再单列一张表——它们是**约束**而非可裁剪功能。
+
 ### 6.1 数据与底座
 
 | 功能 | 门禁键 | 来源 | 优先级 |
@@ -801,6 +922,7 @@ org.user.<32 字节随机 hex>
 | 沿用 `workdsh` profile 扩展 quant 工作区、独立数据命名空间、离线优先 | `core.app` | [O] | P0 |
 | 多源连接器框架：`DataSource` trait + 按 market 注册 + **失败软着陆**（首版 **Binance + OKX**） | `data.hub` | [D] | P0 |
 | 本地数据湖：Parquet + DuckDB，bronze→silver 分层 | `data.hub` | [M][O] | P0 |
+| 本库预览：来源、日期范围、表格预览（**只读视图，不是第二份存储**） | `data.hub` | [QS] | P1 |
 | 增量同步、断点续传、同步任务账与指纹校验 | `data.hub` | [M][O] | P0 |
 | **加密专属**：资金费率 / 期现基差 / 标记价 / 清算 / 深度 / 链上 ⭐ | `data.crypto-native` | [O] | P0 |
 | 数据质量治理：缺失停牌复权、跨源校验、**缺失留空不填 0** | `data.hub` | [QS][O] | P1 |
@@ -832,6 +954,7 @@ org.user.<32 字节随机 hex>
 | 错误脱敏（绝对路径替换）+ 超长截断（头尾各保留），护隐私且控 LLM token | `research.agents` | [M] | P1 |
 | 组合优化与风控（约束优化、Sharpe/Sortino/回撤/β） | `research.backtest` | [O][D] | P1 |
 | 结果工作台（报告/表格/代码并排核对、AI 建议参数调整） | `research.backtest` | [QS][D] | P1 |
+| **策略构建**：规则 / ML / 混合；参数空间与超参搜索；**walk-forward** 分段验证 | `research.backtest` | [M][O] | P1 |
 | 跨资产规则插件位（涨跌停/停牌/整手/T+1，为 A 股期货预留） | `research.backtest` | [M] | P2 |
 | **因子自主进化**（假设→公式合成→遗传演化→入库）⭐ | `research.automl` | [M] | P2 |
 | 模型工场与集成（`ModelAdapter` 接口） | `research.automl` | [M] | P2 |
@@ -875,6 +998,7 @@ org.user.<32 字节随机 hex>
 | 功能 | 门禁键 | 来源 | 优先级 |
 |---|---|---|---|
 | 会话生命周期（继续/归档/恢复；删除保留生成文件；完整删除二次确认） | `core.app` | [QS] | P1 |
+| 运行留痕与审计（按来源筛选/删除；清理列表**必须保留**成交回执、盈亏统计与策略审计底账） | `core.app` | [QS] | P2 |
 | **团队共享区**（共享策略/因子/报告，写需 manage）⭐ | `team.collab` | [O] | P1 |
 | 官网组织/用户/团队/成员管理 + 审计 | — | [O] | P1 |
 | **单组织约束**：一个用户只属于一个组织（`users.org_id` 单值，email 全局唯一） | — | [O] | P0 |
@@ -906,8 +1030,9 @@ org.user.<32 字节随机 hex>
 ## 8. 参考借鉴策略（许可证仅作事实记录，不作借鉴门禁）
 
 > **决策（v1.2）：按你的指示，调研不设开源许可门禁。** 三家参照的**功能全集、代码级实现、商业模式**一律完整参考与借鉴；
-> 许可证仅在 §8.3 登记事实以备日后法务核查，**不作为"能不能借鉴"的前置条件**。
-> 完整调研证据见 `QUANTDSH_REFERENCE_RESEARCH.md`（v2）。
+> 许可证仅在 §8.4 登记事实以备日后法务核查，**不作为"能不能借鉴"的前置条件**。
+> 三家参照的完整功能清单、代码级实现要点与商业模式事实记录在**内部调研笔记**中（本地保存、不随仓库发布）；
+> 下文只保留决策所依据的结论、借鉴清单与横评。
 
 ### 8.1 我们各自从谁身上拿什么（代码级）
 
@@ -931,7 +1056,26 @@ org.user.<32 字节随机 hex>
 | **内部回调 secret 生产环境 fail-closed** | QuantMind `INTERNAL_CALL_SECRET` | 防伪造回调 |
 | Windows 上 `signal` 超时无效 → **须用子进程方案做沙箱** | QuantDinger `safe_exec.py` 的踩坑 | 我们是 Windows 桌面端，必须避开此坑 |
 
-### 8.3 许可证事实记录（备查，非门禁）
+### 8.3 能力横评（本方案取舍的依据）
+
+| 能力维度 | QuantStudio | QuantDinger | QuantMind | **我们的取法** |
+|---|---|---|---|---|
+| 交付形态 | Web 工作台（可自部署） | Web（Flask+Vue，Docker） | Docker + Electron | **桌面客户端**（本地/隐私优先） |
+| 数据中枢 | ❌ 仅本地缓存视图，绑 PandaData | ✅ 多源工厂 + 失败软着陆 | ✅ 300+ 特征 + DuckDB | Dinger 抽象 + Mind 存算 + 自有多源 |
+| PIT / 前视偏差 | ✅ PIT vintage builder | ❌ | 部分（fundamental aligner） | 采纳 QS 的 PIT 概念 |
+| 因子研究 | ✅ 因子评估 + 组合守护 | ❌（仅技术指标） | ✅ 自主进化 | Mind 进化 + QS 生命周期 |
+| 回测 | ⚠️ 回测审查（非引擎） | ✅ 费/滑/杠杆 | ✅ Qlib 事件驱动 + 涨跌停 | Dinger 成本模型 + Mind 引擎 + 补 crypto 费率 |
+| 模型训练 | ❌ | ❌ | ✅ 13 模型 + 集成 + GPU | 轻量起步，留 `ModelAdapter` |
+| 生产质量闭环 | ⚠️ 部分（健康矩阵） | ❌ | ✅ IC/SHAP/PSI | 采纳 Mind 三件套 |
+| 交易执行 | ⚠️ 仅期货模拟赛 CLI | ✅ 9 家 crypto + IBKR + MT5 | ⚠️ 参考实现 | 取 Dinger 适配层，首版收两家 |
+| 多智能体 | ✅ Skill/Expert/Team 三层 | ✅ 五段流水线 | ✅ 对话入口 | QS 三层模型 + Dinger 流水线 |
+| 智能体记忆 | ❌ | ✅ SQLite 记忆 + 反思闭环 | ❌ | **重点采纳 Dinger** |
+| 费用与盈亏口径 | ✅ 极严谨（毛/净标注、留空不填 0） | 一般 | 一般 | **采纳 QS 口径** |
+| IM / 告警 | ❌ | ✅ 多渠道通知 | ✅ 17 类 IM | 远期，先解决鉴权 |
+| 团队 / 成员隔离 | ❌ 明确"共享部署无隔离" | ❌ 仅多用户账号 | ❌ | ⭐ **我们独有** |
+| crypto 专属 | ❌ | ⚠️ 有交易所无费率/基差 | ⚠️ 有 crypto adapter | ⭐ **我们独占** |
+
+### 8.4 许可证事实记录（备查，非门禁）
 
 | 参照 | 许可证事实 | 备注 |
 |---|---|---|
@@ -971,6 +1115,11 @@ org.user.<32 字节随机 hex>
 > **不在本路线图内**：按次计量统计与用量账单、license 合规工作、**试用期机制（不做 trial）**。
 > （注：**订阅套餐与支付闭环在范围内**，见 §1.4.1；这里排除的是"用多少算多少钱"的计量计费模型。）
 
+**口径映射**：原功能附录用的是 **MVP / v1 / v2**，与 **P0 / P1 / P2** 同义，本文统一用 P0/P1/P2。
+若有冲突（例如早期把"crypto 回测补完"列为 MVP、把企业版列为 v1），**以本表为准**。
+
+**P0 内部的交付顺序**（契约优先）：契约定稿 → 服务端骨架 → 客户端 key 登录 + `can_access` → 授权完整性 → 联调回归（详见 §4.6）。
+
 ---
 
 ## 11. 风险与合规清单
@@ -983,7 +1132,7 @@ org.user.<32 字节随机 hex>
 | 4 | **免费功能被误锁** | 中 | 免费项走客户端内置白名单，**不依赖任何快照与网络**；离线自测必须包含"无 key 启动"场景 |
 | 5 | **IM 推送安全** | 中 | 远期若做 IM，须先补鉴权、源 IP 限制与凭据隔离，不可照搬"免登录对外端口" |
 | 6 | **运行时契约被破坏** | 中 | `workdsh://`、`workdsh.localhost`、`workdsh-runtime`、`workdsh-*`、`runtime_pack::PRODUCT="WorkDSH"`、`%APPDATA%\WorkDSH` 一律不动 |
-| 7 | 第三方代码来源与商标 | 低（用户已决定暂不处理） | 见 §8；若将来对外分发或尽调需要，再回来逐项评估。实现时优先参考 QuantDinger 的**结构形态**，不使用其名称/Logo |
+| 7 | 第三方代码来源与商标 | 低（用户已决定暂不处理） | 三条事实约束：① **QuantMind（AGPL v3）不复制、不翻译源码**，只用文档级工程范式；② **不使用 QuantDinger 名称/Logo**，保留其 LICENSE/NOTICE 与署名（Apache 2.0 义务）；③ QuantStudio 技能包自带**独立 LICENSE**，如需引入须逐项核实。见 §8.4 |
 | 8 | **授权被伪造 / 篡改（代码公开）** | **高** | §3.8 整套措施：签名快照 fail-closed、判定下沉 native、**高价值数据放服务端并加密下发**、实盘在线票据、吊销增量与设备绑定。**且不追求"无法绕过"**——目标是篡改成本高于订阅价 |
 | 9 | **防破解反噬（误伤付费用户 / 被当恶意软件）** | 中 | §3.8 公司红线：不做侵入式 DRM、不采集无关隐私；期末降级语义明确（除实盘外不许因断网禁用已付功能）；任何封禁可由管理员复核撤销 |
 | 10 | **到期时序不一致** | 中 | 权益时间戳一律以服务端签发为准，`expires_at` 逐项沉淀进快照；本地只做比较不做推算；离线与在线走同一函数 |
@@ -992,6 +1141,39 @@ org.user.<32 字节随机 hex>
 ---
 
 ## 12. 决策台账状态
+
+> 12.0 是**累计总表**（仍在生效的全部决策）；12.1–12.3 是**各轮并入时的流水**，编号按并入先后而非版本序（v1.1 → v1.3 → v1.2）。
+
+### 12.0 全部锁定决策（v1.0 起累计，仍在生效）
+
+**量化侧 9 项**
+
+| # | 议题 | 结论 | 状态 |
+|---|---|---|---|
+| Q1 | 数据目录 | `%APPDATA%\WorkDSH\profiles\workdsh\quant\`（量化命名空间），位置可配置，不动 `%APPDATA%\WorkDSH` 根 | **v1.1 修订**：原 `profiles\quantdsh` 作废 |
+| Q2 | 能力参考来源 | QuantDinger 作**结构形态主参考**；QuantStudio 取概念与严谨口径；QuantMind 取工程范式 | v1.2 起**不设许可门禁**（§8） |
+| Q3 | 首版资产类别 | **加密货币**优先（24/7、公开 API 丰富、契合本地数据湖） | 有效 |
+| Q4 | 交易形态 | **仿真 + 实盘同步**；实盘默认关闭 + 显式 opt-in + Preflight 守门 + 可按地区/构建关闭 | 有效，v1.3 追加在线票据 |
+| Q5 | profile 命名 | 内部沿用 `workdsh` profile，对外品牌 **QuantDSH 量化工作台** | **v1.1 修订**：原"新建 `quantdsh` profile"作废 |
+| Q6 | Preflight Check | 启动前自检（凭据/余额/网络/时钟/合约/额度/参数），不过不启动 | 有效 |
+| Q7 | 记忆增强 + 反思闭环 | 本地 SQLite + 打分公式 + 自动反思 worker + 手动复盘；服务端 `/api/agent/memory`、`/api/agent/reflect` | 有效 |
+| Q8 | 质量闭环 | 每日 Rank IC/ICIR 回填 + SHAP 重要性 + PSI 双通道告警（crypto 用截面 IC 口径） | 有效 |
+| Q9 | 回测 crypto 补完 | 资金费率 / 期现基差 / 逐仓全仓保证金 / 强平与结算 | 有效 |
+
+**企业侧 10 项**
+
+| # | 维度 | 结论 |
+|---|---|---|
+| E1 | 持久化 | 服务端 **SQLite**；客户端授权缓存 **SQLite**（与量化数据湖 DuckDB 解耦） |
+| E2 | 鉴权 | 新建服务端；账号密码只在服务端；客户端**只认 key** |
+| E3 | 组织粒度 | 官网建组织、加用户、建团队；成员在官网申请 key；客户端用 key 登录 |
+| E4 | 管理 UI | 在**官网网页**，不在客户端 |
+| E5 | 交付范围 | 客户端 + 服务端**一起交付** |
+| E6 | 服务端归属 | **新建独立服务**（独立仓库/技术栈），与既有后台解耦 |
+| E7 | 离线强制 | **本地优先**：无网按签名快照门禁，联网后刷新校验 |
+| E8 | key 形态 | **结构化 token** `org.user.<32B hex>`，服务端只存 `sha256` |
+| E9 | 技术栈 | **Rust + Axum + SQLite**（§4.6） |
+| E10 | 启动方式 | **契约优先**：先定稿 API / token / 表结构，再并行实现两端 |
 
 ### 12.1 第二轮已拍板（v1.1，六项，已并入全文）
 
@@ -1019,6 +1201,16 @@ org.user.<32 字节随机 hex>
 | # | 议题 | 结论 | 落点 |
 |---|---|---|---|
 | A | **一个用户能否同时在多个组织** | **不能。一个用户只属于单组织**（原第 5 项待定就此关闭） | `users.org_id` 非空单值 + email 全局唯一（§4.3）；客户端 entitlement 的 `org` 为标量 |
+
+### 12.4 合并记录（v1.4）
+
+| 原文件 | 内容去向 | 处置 |
+|---|---|---|
+| `QUANTDSH_ENTERPRISE_PLAN.md`（企业契约附录） | 技术栈 → §4.6；基础四表 DDL → §4.3；客户端缓存 schema 与旧登录衔接 → §5.5；token 形态 → §4.5；10 项决策 → §12.0 | **已删除** |
+| `QUANTDSH_QUANT_PLAN.md`（功能模块附录） | 子系统视角 → §6.0；功能明细与来源标记 → §6.1–§6.5；能力横评 → §8.3；9 项决策 → §12.0；阶段口径 → §10 | **已删除** |
+| `QUANTDSH_REFERENCE_RESEARCH.md`（调研附录，更早） | 结论与借鉴清单 → §8；细节留在内部调研笔记（不发布） | 更早已转为本地文件 |
+
+> 合并时修掉的三处矛盾：`profiles\quantdsh` → `profiles\workdsh\quant\`；客户端授权缓存 DuckDB → **SQLite**；`/api/org/*` → §4.4 的 `/api/orgs/:id/*`。
 
 ---
 
