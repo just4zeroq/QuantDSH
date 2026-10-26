@@ -1,0 +1,7 @@
+- insert:
+    - id: quantdsh-identity-local
+      name: quantdsh-provider-identity-local
+      config:
+        principalId: local-user
+        organizationId: local-personal
+        organizationName: 本地个人空间

@@ -6,6 +6,10 @@ src-tauri/target/
 src-tauri/gen/schemas/
 node_modules/
 dist-js/
+# Profile fork (profile/) keeps sources only; its build output is regenerated.
+profile/packages/**/dist/
+profile/apps/web/dist/
+profile/**/.turbo/
 
 # ---------------------------------------------------------------------------
 # Runtime / installer artefacts

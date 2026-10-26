@@ -2,8 +2,8 @@
 /** Apply electron-builder's `build.mac.extendInfo` to the bundled macOS Info.plist.
  *
  *  Tauri has no `extendInfo` equivalent, so the same keys are written after
- *  `tauri build` produced the `.app`. Source of truth:
- *  workdsh/apps/desktop/package.json → build.mac.extendInfo.
+ *  `tauri build` produced the `.app`. The source of truth for the keys is the
+ *  `macInfoPlist` table in `src-tauri/tauri.conf.json`.
  *
  *  `LSUIElement: true` is what makes the bundle an agent process at launch. The
  *  carrier then calls `setActivationPolicy(Regular)` (the Electron main process

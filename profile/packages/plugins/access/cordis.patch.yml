@@ -1,0 +1,9 @@
+- insert:
+    - id: quantdsh-access
+      name: quantdsh-plugin-access
+    - id: quantdsh-session-access
+      name: quantdsh-plugin-access/session
+    - id: quantdsh-tool-access
+      name: quantdsh-plugin-access/tool
+      config:
+        autoBindPersonalSessions: true

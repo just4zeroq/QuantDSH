@@ -43,14 +43,24 @@
 
 ## 1. 改名执行清单
 
-> **执行状态（2026-10-26）：L1 已完成。** 44 个文件改完，`cargo check` 通过、
-> `cargo test` **40 项全通过**（与改名前基线一致）。`build\quantdsh-runtime` 与
-> `profiles\quantdsh` 构建产物目录已同步改名。L2（profile）**尚未开始** —— 需先把
-> `D:\code\github\workdsh` fork 进本仓库，见 §1.3 与 §9。
+> **执行状态（2026-10-26，两轮）：L1 与 L2 均已完成。**
+>
+> - **L1 carrier**：44 个文件 + 5 个脚本重命名，`cargo check` 通过、`cargo test` **40 项全通过**。
+> - **L2 profile**：源码 fork 进 `profile/`（21 MB / 1328 文件），改名脚本覆盖 **1101 个文本文件、
+>   改动 677 个、重命名 17 个路径**（含 7 个技能资源目录、品牌资源、`quantdsh-features.json`）。
+>   `pnpm install` + `pnpm build` 通过，`pack-quantdsh-profile.mjs` 打出 **13 个包**。
+>
+> **半改状态的教训（本轮实测到的真 bug）**：L1 那次批量替换把 6 处「自有包前缀判断」改成了
+> `startsWith('quantdsh-')`，而 profile 包名还是 `workdsh-*`，两边对不上 →
+> `pack-quantdsh-profile.mjs` 把自有 peer 当外部依赖去 `createRequire().resolve()`，
+> 直接抛 `ERR_PACKAGE_PATH_NOT_EXPORTED`；`verifyDefaultProfile` 的三个断言也会全部失败
+> （期望 6/13 项，筛出 0 项）。**`cargo test` 覆盖不到 Node 打包脚本，所以 L1 当时是"绿"的。**
+> 结论：包名与服务键这类跨层标识，要么都不改，要么必须和 profile 一次性改完。
 >
 > **实测补充**：一次性全仓替换会连 Profile 侧的包名、服务键一起改掉，编译不报错但运行时
 > 插件全加载不到。实际执行时用「保护清单 + 替换」两步：先遮住
 > `workdsh-provider-*/plugin-*/contracts/ui/bundle`、cordis id、服务键、插槽名，再替换其余。
+> L2 完成后保护清单不再需要，两侧已经同名。
 
 ### 1.1 三层归属
 
@@ -106,43 +116,55 @@
 
 > 如果将来确实要再换品牌，`brand.rs` 仍然值得做——但不是现在，现在做只会把已验证的改动再动一遍。
 
-### 1.3 L2 profile 改动表
+### 1.3 L2 profile 改动表（已执行）
 
-profile 源码在 `D:\code\github\workdsh\apps\web`（261 文件 / 28.9 MB，其中 `website/` 22.6 MB 是文档站，**不要带**）。
-
-**先决决策：profile 源码要 fork 进本仓库，不能再依赖外部目录。**
-现在构建脚本用相对路径 `../workdsh/apps/web`，这意味着构建机必须有另一个仓库的工作副本——不可持续，也无法让改名生效。方案：
+**profile 源码已 fork 进本仓库**，不再依赖外部目录。原构建脚本用相对路径 `../workdsh/apps/web`，
+构建机必须有另一个仓库的工作副本——不可持续，也无法让改名生效。
 
 ```
 dsh-tauri/
-  profile/                    ← 新增，从 workdsh/apps/web fork（排除 node_modules / website / .git）
-  scripts/pack-quantdsh-profile.mjs   ← 默认源改为 ../profile
+  profile/                    ← apps/web + packages + profiles + upstream.json
+  scripts/pack-quantdsh-profile.mjs   ← 默认源改为 ./profile/apps/web
 ```
 
-fork 后体积约 6 MB / 190 文件，可接受。`--source` 覆盖参数保留，方便本地调试。
+**实际 fork 内容**：21.2 MB / 1328 文件，排除 `node_modules`（1.2 GB）、`dist`、`build`、
+`website`（22.6 MB 文档站）、`.git`。同时删除两块死代码：
+`apps/web/scripts/desktop/`（Electron 打包工具链 + 上游补丁镜像，Tauri 载体用不到，且含 1.5 MB 的 `.icns`）
+与两个审计历史发版的 Python 脚本。
 
-| # | 标识 | 新值 | 位置 | 备注 |
+`pack-quantdsh-profile.mjs` 的路径推算已改为「从 `apps/web` 上溯两级得到 profile 根」，
+因此同一个脚本既能用于仓内 fork，也能用于外部 checkout：
+
+| # | 标识 | 新值 | 位置 | 结果 |
 |---|---|---|---|---|
-| 1 | 根包名 | `quantdsh` | `profile/package.json:2` | |
-| 2 | 16 个 workspace 包名 | `quantdsh-tabular` / `-contracts` / `-provider-browser-session` / `-provider-identity-local` / `-provider-runtime-isolated` / `-plugin-audit` / `-plugin-access` / `-plugin-skills` / `-plugin-experts` / `-plugin-connectors` / `-plugin-office` / `-plugin-library` / `-plugin-projects` / `-plugin-activity` / `-plugin-workbenches` / `-plugin-quality-analysis` / `-bundle` | 各 `packages/*/package.json` + 所有 import + `pnpm-workspace.yaml` | 机械但量大 |
-| 3 | pnpm filter 串 | 全部 `workdsh-` → `quantdsh-` | `profile/package.json:17-18, 54-58` | 一行一个 filter 链，容易漏 |
-| 4 | 存储域键 | `quantdsh_*` | 各插件的 storage 命名空间 | 与数据断代一致 |
-| 5 | 工具名 | `quantdsh_*` | tool 注册处 | 出现在 preset 里，要同步 |
-| 6 | 服务键 | `quantdshIdentity` / `quantdshAccess` | identity / access 插件 | |
-| 7 | 插槽名 | `quantdsh.workbench.frame` | `scripts/native-workbench-frame-patch.json` + `.mjs` | **改后要重算字节补丁的两个 sha256**，否则补丁静默失效 |
-| 8 | 关键帧/资源路径 | 含 `workdsh` 的静态路径 | `profile/assets`、`profile/scripts` | 逐个核对 |
+| 1 | 根包名 | `quantdsh` | `profile/apps/web/package.json` | ✅ |
+| 2 | workspace 包名 | `quantdsh-tabular` / `-contracts` / `-bundle` / `-provider-*` / `-plugin-*` | 各 `packages/*/package.json` + 全部 import + `pnpm-workspace.yaml` | ✅ 597 文件 / 1850 处 |
+| 3 | pnpm filter 串 | 全部 `workdsh-` → `quantdsh-` | `profile/apps/web/package.json` build/typecheck 链 | ✅ |
+| 4 | 存储域键 / 工具名 | `quantdsh.*` / `quantdsh_*` | 各插件 storage 命名空间、tool 注册 | ✅ |
+| 5 | 服务键 | `quantdshConnectors/Experts/Library/Projects/Skills/WorkbenchRegistration/Identity/Access` | identity / access 等插件 | ✅ 147 文件 / 918 处 |
+| 6 | 插槽名 | `quantdsh.workbench.frame` | `scripts/native-workbench-frame-patch.json` + `workbenches/src/client/native-frame.tsx` | ✅ `patchedSha256` 已重算 |
+| 7 | 资源路径与技能目录 | `quantdsh-*` | `packages/plugins/skills/resources/skills/`（6 个）、`experts/resources/skills/`（1 个）、`assets/brand`、`assets/screenshots`、`profiles/shared/quantdsh-features.json` | ✅ 17 个路径重命名 |
+| 8 | 上游出处链接 | **保留** `github.com/techflag/workdsh` 等 | 各 README、`contracts/tests` 的 repository 断言 | 有意保留，改了成死链 |
 
-**第 7 项是唯一容易"改完不报错但功能不对"的点**：`native-workbench-frame-patch.json` 记录了替换目标的 sha256，插槽名长度变了会导致偏移与哈希全部失效。做法是改完名字后重新生成该补丁，不要手改哈希。
+**第 6 项是唯一容易"改完不报错但功能不对"的点**：`native-workbench-frame-patch.json` 记录了替换目标的
+sha256。做法是改完名字后用脚本重新计算：`originalSha256` 是上游原文件的哈希（**必须保持不变**，
+它同时充当锚点完整性校验），只重算 `patchedSha256`。本轮结果
+`aafebc01…` → `876bc884…`，锚点校验通过（`originalSha256` 仍为 `8554738c…`）。
 
 ### 1.4 执行顺序与验收
 
 顺序不能颠倒，否则中途无法启动：
 
-1. **常量收敛**（1.2 的 `brand.rs`）→ `cargo test` 40 项全绿，行为不变
-2. **carrier 改名**（改常量值 + 成对的资源映射 + 脚本文件名）→ `npm run check:pack` 能出包
-3. **profile fork + 改名**（含补丁重算）→ `npm run pack:profile` 通过
+1. ~~**常量收敛**（`brand.rs`）~~ → 已取消，理由见 §1.2 末
+2. **carrier 改名**（改常量值 + 成对的资源映射 + 脚本文件名）→ ✅ 已完成，`cargo test` 40 项全绿
+3. **profile fork + 改名**（含补丁重算）→ ✅ 已完成，`pnpm build` 通过、`pack:profile` 打出 13 个包
 4. **全量回归**：`cargo test` + `packaged-host-smoke.mjs` + `verify:packaged` + `verify-profile-release`
 5. **清空旧数据目录**（`%APPDATA%\WorkDSH` 不删也行，新进程不会再读；但测试时要确认走的是新目录）
+
+> **顺序上的硬约束（本轮实测）**：第 2、3 步必须一起完成才能验证。只做第 2 步时，
+> carrier 里的 `startsWith('quantdsh-')` 与 profile 的 `workdsh-*` 包名冲突，打包脚本必挂；
+> 这个失败**不在 `cargo test` 的覆盖范围内**，只能在 `pack:profile` 阶段暴露。
+> 所以从第 2 步起，`cargo test` 通过不再等于"改名完成"，必须跑一次 `pack:profile`。
 
 验收标准：装了新包之后，`%APPDATA%\QuantDSH` 下生成 `profiles\quantdsh\`、`.quantdsh-desktop-base.json`、`dsh-home\`，窗口能起来，与 Profile 通信正常，旧目录**完全没有新写入**。
 

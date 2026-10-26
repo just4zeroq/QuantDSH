@@ -1,13 +1,21 @@
 # QuantDSH 产品方案（终版）
 
-> **版本**：FINAL **v1.6** · 2026-10-26
+> **版本**：FINAL **v1.7** · 2026-10-26
 > **地位**：本文档是 QuantDSH **整体产品的单一事实来源**。原「企业契约附录」（`QUANTDSH_ENTERPRISE_PLAN.md`）与「功能模块附录」（`QUANTDSH_QUANT_PLAN.md`）已**全文并入**本文，两份文件已删除。
 > **配套文档**：`QUANTDSH_V1_IMPLEMENTATION.md` 是本文的实现层配套（改名清单、引擎架构、数据层、因子挖掘状态机）。本文说"做什么"，配套文档说"怎么做、按什么顺序、哪里留缝"。
+>
+> ### v1.7 变更（第七轮：profile fork 与全量改名收尾）
+> | # | 议题 | 结论 | 影响面 |
+> |---|---|---|---|
+> | A | **改名只改了一半是真 bug** | carrier 的 6 处「自有包前缀判断」已改成 `quantdsh-`，profile 包名仍是 `workdsh-*` → 打包脚本把自有包当外部依赖解析，`pack:profile` 直接失败（`cargo test` 覆盖不到，中途"绿着打不出包"） | §2.4 |
+> | B | **profile 必须 fork 进仓库** | `profile/`（`apps/web` + `packages` + `profiles` + `upstream.json`，21.2 MB / 1328 文件）；构建不再依赖 `../workdsh` 外部目录，CI 可构建 | §2.4；实现见配套文档 §1.3 |
+> | C | **包名 / 插件 id / 服务键 / 插槽名全改** | 1101 个文本文件改名（改动 677 个、重命名 17 个路径）；`workbench frame` 字节补丁 `patchedSha256` 重算 | §2.4 |
+> | D | **上游出处保留** | 仅保留 profile 内指向上游真实仓库的链接（改了成死链），其余 `workdsh` 归零 | §2.4 |
 >
 > ### v1.6 变更（第六轮：改名落地 + 按 RD-Agent 核对补全）
 > | # | 议题 | 结论 | 影响面 |
 > |---|---|---|---|
-> | A | **改名执行** | carrier 层 **44 个文件已改完**，`cargo check` 通过、`cargo test` **40 项全通过**（与基线一致）。Profile 侧包名/插件 id/服务键/插槽名**有意保留**，随 profile fork 一并改（单方面改会「打包成功但插件全加载不到」） | §2.4 |
+> | A | **改名执行** | carrier 层 **44 个文件已改完**，`cargo check` 通过、`cargo test` **40 项全通过**（与基线一致）。Profile 侧当时**有意保留**，现已随 profile fork 一并改完（见 v1.7） | §2.4 |
 > | B | **自动挖掘漏了一条路径** | 补**因子工厂**（算子 × 窗口 × 二元组合枚举，纯计算无 LLM），**v1 先做这条**，LLM 演化放在其之上做方向引导 | §6.2 / §6.2.1 |
 > | C | **演化机制缺三件** | 补 **Trace DAG**（不是日志，变异必须继承父节点）、**HITL 三处介入点**、**算力预检与降级** | §6.2 / §6.2.1 |
 > | D | **数据面决定因子空间** | 补**富化特征白名单**（预计算指标以固定列名暴露给因子表达式），数据层设计时就要定下来 | §6.1 |
@@ -233,19 +241,24 @@
 | 部署配置 | `workdsh-config.json` | `quantdsh-config.json` | ✅ 已改 |
 | 窗口 label / 菜单 id / Tauri 命令名 | `workdsh-window-*` / `workdsh-return` / `workdsh_navigate` | `quantdsh-*` | ✅ 已改 |
 | 脚本名 / crate 名 / npm 包名（carrier 自身） | `pack-workdsh-*.mjs` / `workdsh-desktop-tauri` | `pack-quantdsh-*.mjs` / `quantdsh-desktop-tauri` | ✅ 已改 |
-| **Profile npm 包名** | `workdsh-contracts` / `workdsh-ui` / `workdsh-plugin-*` / `workdsh-provider-*` | `quantdsh-*` | ⏸ 随 profile fork 一并改 |
-| **cordis 插件 id / 服务键 / 插槽名** | `workdsh-identity-local` / `workdshConnectors` / `workdsh.workbench.frame` | 同上 | ⏸ 随 profile fork 一并改 |
+| **Profile npm 包名** | `workdsh-contracts` / `workdsh-ui` / `workdsh-plugin-*` / `workdsh-provider-*` | `quantdsh-*` | ✅ 已改（profile fork 后） |
+| **cordis 插件 id / 服务键 / 插槽名** | `workdsh-identity-local` / `workdshConnectors` / `workdsh.workbench.frame` | 同上 | ✅ 已改（补丁 sha256 已重算） |
 
-**最后两行为什么没一起改**：它们定义在 Profile 源码（另一个仓库），carrier 只按名字引用。
-carrier 单方面改名会「打包成功、启动后插件全部加载不到」—— 典型静默失败，比编译错误难查得多。
-必须 carrier 与 Profile 同一提交改完。这也是 profile 必须 fork 进本仓库的直接原因。
+**上一轮为什么只改了 carrier**：这两行定义在 Profile 源码（另一个仓库），carrier 只按名字引用，
+carrier 单方面改名会「打包成功、启动后插件全部加载不到」。这也是 profile 必须 fork 进本仓库的直接原因。
 
-**实测**：carrier 层 44 个文件已改完，`cargo check` 通过，`cargo test` **40 项全通过**，与改名前的基线一致；
-`build\quantdsh-runtime` 与 `profiles\quantdsh` 构建产物目录已同步改名。
+**半改状态的真实代价（本轮实测）**：carrier 改名时把 6 处「自有包前缀判断」改成了
+`startsWith('quantdsh-')`，而 profile 包名仍是 `workdsh-*`，两边不一致 → 打包脚本把自有包当外部依赖解析，
+`ERR_PACKAGE_PATH_NOT_EXPORTED` 直接失败，`verifyDefaultProfile` 三个断言也全部失败（期望 6/13 项、筛出 0 项）。
+**`cargo test` 覆盖不到 Node 打包脚本**，所以中途状态是"测试全绿但打不出包"。教训：这类跨层标识
+要么都不改，要么一次性改完。
+
+**profile fork 实测**：源码进 `profile/`（21.2 MB / 1328 文件），改名覆盖 1101 个文本文件、改动 677 个、
+重命名 17 个路径；`pnpm install` + `pnpm build` + `typecheck` 通过，`pack:profile` 打出 **13 个包**。
 
 **依据**：上游 `deepseek-harness`（`@deepseek-ai/dsh@0.2.1-rc.2`，与 `upstream.json` 一致）全仓 `workdsh` **0 命中**，装配产物 `primary-runtime` 也 0 命中。所以改名只需改 **carrier（Rust/脚本/conf）** 与 **profile 源码**两层，**不需要重建运行时**。
 
-**断代代价（已知并接受）**：旧数据目录、旧状态文件、旧 env、旧 cookie、旧撤销记录一律不再读取，相关兼容分支**已直接删除**（净减代码）。唯一需要手工重算的是 workbench frame 字节补丁的两个 `sha256`（插槽名长度变化导致偏移与哈希失效），必须重新生成补丁而不是手改哈希 —— 这项随 profile fork 一起做。
+**断代代价（已知并接受）**：旧数据目录、旧状态文件、旧 env、旧 cookie、旧撤销记录一律不再读取，相关兼容分支**已直接删除**（净减代码）。唯一需要手工重算的是 workbench frame 字节补丁的 `patchedSha256`（插槽名长度变化导致哈希失效）：`originalSha256` 是上游原文件哈希、必须保持不变（它同时充当锚点完整性校验），只重算 `patchedSha256` —— 已按脚本重算 `aafebc01…` → `876bc884…`，锚点校验通过。
 
 **实施方式（据实记录）**：原计划先建 `brand.rs` 收口常量再改值。执行后判断不值得——530 处里绝大多数
 是一次性的，收口只能省"再换一次品牌"这一种情形；而真正的风险是**误伤 Profile 侧名字**（编译期发现不了）。
@@ -1277,7 +1290,8 @@ RD-Agent 让 LLM 读回测结果判定「假设是否成立、下一轮往哪走
 **口径映射**：原功能附录用的是 **MVP / v1 / v2**，与 **P0 / P1 / P2** 同义，本文统一用 P0/P1/P2。
 若有冲突（例如早期把"crypto 回测补完"列为 MVP、把企业版列为 v1），**以本表为准**。
 
-**v1 内部交付顺序**（当前执行）：常量收敛（判断不需要，改为保护清单替换）→ 全量改名 ✅（carrier 层）→ **profile fork 进仓库 ← 现在这里** → 引擎 sidecar 起步（DuckDB + 单交易所）→ 数据湖与 silver 层 → **`MarketAdapter` + 富化特征白名单** → 因子校验与评估 → 回测 → **因子工厂 → LLM 演化（Trace DAG）** → 仿真 → slots 面板。
+**v1 内部交付顺序**（当前执行）：常量收敛（判断不需要，改为保护清单替换）→ 全量改名 ✅（carrier + profile 两层，
+profile 已 fork 进 `profile/`）→ **引擎 sidecar 起步（DuckDB + 单交易所）← 现在这里** → 数据湖与 silver 层 → **`MarketAdapter` + 富化特征白名单** → 因子校验与评估 → 回测 → **因子工厂 → LLM 演化（Trace DAG）** → 仿真 → slots 面板。
 每一步的验收见 `QUANTDSH_V1_IMPLEMENTATION.md` §9。
 
 **P0 内部交付顺序**（v1 完成后，契约优先）：契约定稿 → 服务端骨架 → 客户端 key 登录 + `LocalEntitlement` 换 `ServerEntitlement` → 授权完整性 → 联调回归（详见 §4.6）。
@@ -1405,7 +1419,7 @@ RD-Agent 让 LLM 读回测结果判定「假设是否成立、下一轮往哪走
 ---
 
 > **§12 已无待定项**，设计阶段的开放问题全部关闭。
-> **当前执行顺序**：常量收敛（判断不需要，改为保护清单替换）→ 全量改名 ✅（carrier 层）→ **profile fork 进仓库 ← 现在这里** → 引擎 sidecar 起步（DuckDB + 单交易所）→ 数据湖与 silver 层 → **市场适配器 + 富化特征白名单** → 因子校验与评估 → 回测 → **因子工厂 → LLM 演化** → 仿真 → slots 面板。
+> **当前执行顺序**：常量收敛（判断不需要，改为保护清单替换）→ 全量改名 ✅（carrier + profile 两层，profile 已 fork 进 `profile/`）→ **引擎 sidecar 起步（DuckDB + 单交易所）← 现在这里** → 数据湖与 silver 层 → **市场适配器 + 富化特征白名单** → 因子校验与评估 → 回测 → **因子工厂 → LLM 演化** → 仿真 → slots 面板。
 > 服务端（key 登录 / 签名快照 / 席位 / 订阅支付 / 团队共享区 / 实盘票据）整体延后到 v1 之后，但接缝必须在 v1 就留好。
 > 唯一延后到 P2 的是**免费 / 订阅的功能切分**——按你的决定，等功能做完整后再统一规划。
 > 实现细节与每步验收见 `QUANTDSH_V1_IMPLEMENTATION.md`。

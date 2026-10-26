@@ -1,0 +1,3 @@
+- insert:
+    - id: quantdsh-quality-analysis
+      name: quantdsh-plugin-quality-analysis

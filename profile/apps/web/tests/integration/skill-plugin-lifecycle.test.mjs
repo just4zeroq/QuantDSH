@@ -1,0 +1,104 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Context } from '@deepseek-ai/cordis';
+import SkillRegistry from '@deepseek-ai/dsh-skill';
+import * as filesystem from '@deepseek-ai/dsh-skill-filesystem';
+import Tools from '@deepseek-ai/dsh-tools';
+import * as skills from '../../../../packages/plugins/skills/dist/index.js';
+
+const settle = async predicate => {
+  for (let i = 0; i < 100; i++) {
+    if (predicate()) return;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.ok(predicate(), 'plugin lifecycle settled');
+};
+
+test('Skill service waits, activates independently, disposes consumers and restores without losing files', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'quantdsh-skill-lifetime-'));
+  const original = { DSH_HOME: process.env.DSH_HOME, DSH_AGENTS_HOME: process.env.DSH_AGENTS_HOME };
+  const ctx = new Context();
+  const routes = new Map();
+  try {
+    process.env.DSH_HOME = join(home, 'dsh'); process.env.DSH_AGENTS_HOME = join(home, 'agents');
+    const file = join(home, 'agents/skills/shared-sample/SKILL.md');
+    await mkdir(join(home, 'agents/skills/shared-sample'), { recursive: true });
+    await writeFile(file, '---\nname: shared-sample\ndescription: Shared dependency fixture\n---\nPRESERVE_ME\n');
+    ctx.provide('systemPrompt', { tools() {}, section() {}, getSectionOrder() { return 0; } });
+    ctx.provide('unrelatedFeature', { healthy: true });
+    // The transport registry is an inert test carrier; Skills/Tools/Cordis are real.
+    ctx.provide('connection', { fetch: { register(route) {
+      assert.ok(!routes.has(route.path), 'exact route registered once');
+      routes.set(route.path, route);
+      return async () => { routes.delete(route.path); };
+    } } });
+    await ctx.plugin(Tools);
+    const skillFiber = ctx.plugin(skills);
+    assert.equal(skillFiber.state, 0, 'PENDING without official skills service');
+    assert.equal(ctx.quantdshSkills, undefined);
+    const registry = await ctx.plugin(SkillRegistry);
+    await settle(() => skillFiber.state === 2);
+    await ctx.plugin(filesystem, { dshHome: process.env.DSH_HOME, agentsHome: process.env.DSH_AGENTS_HOME, watch: false });
+    assert.equal(ctx.quantdshSkills.contractVersion, 1);
+    const workbenchSkill = await ctx.skills.get('quantdsh-workbench-dev', { cwd: home });
+    assert.ok(workbenchSkill, 'workbench development resource is registered through official Skills');
+    assert.match(workbenchSkill.content, /官方.*install_bundle/);
+    assert.equal(workbenchSkill.resourceBase.kind, 'directory');
+    for (const name of ['requirements', 'first-development', 'iteration']) {
+      const resource = await readFile(join(workbenchSkill.resourceBase.path, 'references', `${name}.md`), 'utf8');
+      assert.ok(resource.trim(), `packaged ${name} resource remains readable`);
+    }
+    const originalService = ctx.quantdshSkills;
+    const observed = [], disposed = [];
+    const consumer = id => ({ inject: ['quantdshSkills'], apply(context) {
+      observed.push([id, context.quantdshSkills]);
+      context.effect(() => context.quantdshSkills.registerDependencyInspector(() => [{ kind: 'test-consumer', id, label: id, blocking: true }]));
+      context.effect(() => () => { disposed.push(id); });
+    } });
+    await ctx.plugin(consumer('one')); await ctx.plugin(consumer('two'));
+    // Cordis lends a context-specific service view to each consumer. Shared
+    // registrations, not JavaScript proxy identity, establish the single owner.
+    assert.equal(observed[0][1].contractVersion, 1);
+    assert.equal(observed[1][1].contractVersion, 1);
+    assert.equal((await ctx.quantdshSkills.dependencyImpact('shared-sample')).dependents.length, 2);
+    // Three official routes: buffered management, catalog icon delivery and streaming import.
+    assert.equal(routes.size, 3);
+    await registry.dispose();
+    await settle(() => skillFiber.state === 0 && routes.size === 0 && disposed.length === 2);
+    assert.equal(ctx.quantdshSkills, undefined);
+    assert.ok(ctx.unrelatedFeature.healthy);
+    assert.equal(ctx.tools.get('quantdsh_save_skill_draft'), undefined);
+    await ctx.plugin(SkillRegistry);
+    await settle(() => skillFiber.state === 2 && observed.length === 4);
+    assert.notEqual(ctx.quantdshSkills, originalService);
+    assert.equal(routes.size, 3);
+    let cancelled = false, readRequested = false;
+    const body = new ReadableStream({
+      start(controller) { controller.enqueue(new TextEncoder().encode('---\nname: pending-upload\n')); },
+      pull() { readRequested = true; },
+      cancel() { cancelled = true; },
+    }, { highWaterMark: 0 }); // pull proves the Host reader started, not eager prefetch.
+    const uploading = routes.get('/api/quantdsh-skills/import').fetch(new Request('http://localhost/api/quantdsh-skills/import', {
+      method: 'POST', headers: { 'x-quantdsh-file-name': 'SKILL.md' }, body, duplex: 'half',
+    }));
+    await settle(() => readRequested);
+    await skillFiber.dispose();
+    assert.equal((await (await uploading).json()).error.code, 'skill/request-cancelled');
+    assert.ok(cancelled, 'disposal cancels and drains the active upload');
+    await settle(() => routes.size === 0 && ctx.quantdshSkills === undefined && disposed.length === 4);
+    assert.equal(await ctx.skills.get('quantdsh-skill-creator'), undefined);
+    for (const name of ['quantdsh-ppt-design', 'quantdsh-word-design', 'quantdsh-excel-design', 'quantdsh-web-design']) {
+      assert.equal(await ctx.skills.get(name), undefined, 'bundled authoring guidance is revoked with its owner');
+    }
+    assert.ok(ctx.unrelatedFeature.healthy);
+    assert.match(await readFile(file, 'utf8'), /PRESERVE_ME/);
+    assert.ok(await ctx.skills.get('shared-sample'), 'native file provider remains after management removal');
+  } finally {
+    await ctx.fiber.dispose();
+    for (const [key, value] of Object.entries(original)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+    await rm(home, { recursive: true, force: true });
+  }
+});

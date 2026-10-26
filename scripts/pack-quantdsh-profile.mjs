@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DSH_VERSION } from './runtime-version.mjs'
 import { PRODUCT_PACKAGES, RELEASE_PACKAGES, PACKAGE_DIRECTORIES } from './quantdsh-package-boundary.mjs'
@@ -16,9 +16,16 @@ if (existsSync(output)) throw new Error('Use a fresh release directory; candidat
 const project = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'))
 if (project.devDependencies?.['@deepseek-ai/dsh'] !== DSH_VERSION) throw new Error('QuantDSH source and Desktop must target the same official DSH version')
 const sourceRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: source, encoding: 'utf8' }).trim()
-const sourcePath = relative(sourceRoot, source) || '.'
+// The packed source is always `<profile root>/apps/web`; owned sources live next to that
+// profile root. Deriving it (instead of assuming the git top level) keeps the same function
+// working for both the in-repo `profile/` fork and an external checkout.
+const posix = path => path.split(sep).join('/')
+const relativePosix = target => posix(relative(sourceRoot, target) || '.')
+const sourcePath = relativePosix(source)
+const profileRoot = relativePosix(resolve(source, '..', '..'))
+const ownedPath = suffix => (profileRoot === '.' ? suffix : `${profileRoot}/${suffix}`)
 const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim()
-const sourceDirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=all', '--', sourcePath, 'packages', 'profiles', 'upstream.json'], { cwd: sourceRoot, encoding: 'utf8' }).trim().length > 0
+const sourceDirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=all', '--', sourcePath, ownedPath('packages'), ownedPath('profiles'), ownedPath('upstream.json')], { cwd: sourceRoot, encoding: 'utf8' }).trim().length > 0
 const pnpm = join(source, 'node_modules/pnpm/bin/pnpm.cjs')
 const packages = []
 const requiredPeers = {}

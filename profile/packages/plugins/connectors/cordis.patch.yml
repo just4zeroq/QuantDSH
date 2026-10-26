@@ -1,0 +1,3 @@
+- insert:
+    - id: quantdsh-connectors
+      name: quantdsh-plugin-connectors

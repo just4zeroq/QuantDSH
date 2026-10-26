@@ -3,15 +3,15 @@
   "version": "0.2.1-rc.2",
   "file": "lib/client.js",
   "originalSha256": "8554738cbeeb5218ad1bfa4773ef094363b066d052a1893d7a96797c5bc33a63",
-  "patchedSha256": "aafebc0109b8d60eb1e1b5e1f3a686c72b86eaf7a3dae8fdd699e1756debc80f",
+  "patchedSha256": "876bc88425599f93f0d45ef53badf03fe268d7b8afa7a6668e9b567923cb8a38",
   "replacements": [
     [
       "return renderSlot(\"main.conversation\", {});",
-      "const conversation = renderSlot(\"main.conversation\", {});\n\t\t\treturn renderSlot(\"workdsh.workbench.frame\", { conversation }, { fallback: conversation });"
+      "const conversation = renderSlot(\"main.conversation\", {});\n\t\t\treturn renderSlot(\"quantdsh.workbench.frame\", { conversation }, { fallback: conversation });"
     ],
     [
       "children: { \"main.conversation\": {\n\t\t\t\t\t\tkind: \"single\",\n\t\t\t\t\t\tscope: \"session-maybe\"\n\t\t\t\t\t} }",
-      "children: { \"main.conversation\": { kind: \"single\", scope: \"session-maybe\" }, \"workdsh.workbench.frame\": { kind: \"single\", scope: \"root\" } }"
+      "children: { \"main.conversation\": { kind: \"single\", scope: \"session-maybe\" }, \"quantdsh.workbench.frame\": { kind: \"single\", scope: \"root\" } }"
     ]
   ]
 }

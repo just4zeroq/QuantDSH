@@ -1,4 +1,4 @@
-//! Hidden browser worker mode, mirroring `startBrowserWorker` from workdsh-main.ts.
+//! Hidden browser worker mode.
 //!
 //! The browser-session provider spawns this executable again with
 //! `--quantdsh-browser-worker-port=<port> --quantdsh-browser-worker-profile=<dir>`
@@ -27,7 +27,7 @@ pub struct BrowserWorkerRequest {
     pub profile: PathBuf,
 }
 
-/// workdsh-main.ts `browserWorkerRequest`.
+/// Parses the worker request out of the command line.
 pub fn browser_worker_request(args: &[String]) -> Result<Option<BrowserWorkerRequest>, String> {
     let port_arg = args.iter().find(|arg| arg.starts_with("--quantdsh-browser-worker-port="));
     let Some(port_arg) = port_arg else { return Ok(None) };
@@ -54,7 +54,7 @@ fn announce_ready(announced: &AtomicBool) {
     }
 }
 
-/// workdsh-main.ts `startBrowserWorker`.
+/// Starts the hidden browser worker loop.
 pub fn start_browser_worker<R: Runtime, M: Manager<R>>(
     manager: &M,
     request: &BrowserWorkerRequest,

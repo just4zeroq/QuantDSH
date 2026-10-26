@@ -62,8 +62,8 @@ const WINDOW_LOAD_TIMEOUT: Duration = Duration::from_secs(30);
 const ZOOM_STEP: f64 = 1.2;
 const ZOOM_MIN: f64 = 0.25;
 const ZOOM_MAX: f64 = 5.0;
-const IDENTITY_LOCAL_BUNDLE: &str = "workdsh-provider-identity-local";
-const COLLABORATION_BUNDLE: &str = "workdsh-plugin-enterprise-collaboration";
+const IDENTITY_LOCAL_BUNDLE: &str = "quantdsh-provider-identity-local";
+const COLLABORATION_BUNDLE: &str = "quantdsh-plugin-enterprise-collaboration";
 
 /// The single official Host child process, with a generation for identity checks
 /// (`runtime !== child` in the Electron carrier). Readiness lives in the local
@@ -372,7 +372,7 @@ impl<R: Runtime> Carrier<R> {
     pub fn enterprise_plugin_available(&self) -> bool {
         match self.bundled_dsh_version() {
             Ok(version) => installed_enterprise_plugins(&self.profile_directory(), &version)
-                .map(|names| names.iter().any(|name| name == "workdsh-provider-identity-enterprise"))
+                .map(|names| names.iter().any(|name| name == "quantdsh-provider-identity-enterprise"))
                 .unwrap_or(false),
             Err(_) => false,
         }
@@ -2136,7 +2136,7 @@ pub fn build_carrier<R: Runtime>(app: &AppHandle<R>) -> Result<Arc<Carrier<R>>, 
     Ok(Arc::new(Carrier::new(app.clone(), paths)))
 }
 
-/// Entry point for both modes; mirrors the top-level branch of workdsh-main.ts.
+/// Entry point for both modes: dispatch to the hidden browser worker or the app.
 pub fn run() {
     let args: Vec<String> = std::env::args().collect();
     let worker = match browser_worker_request(&args) {

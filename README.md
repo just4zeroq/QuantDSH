@@ -41,17 +41,19 @@ QuantDSH 桌面客户端由两层组成：**Rust + Tauri v2 的载体（carrier�
 
 改名后 `cargo test` 40 项全通过，与改名前的基线一致。
 
-### 仍是 `workdsh` 的地方（有意保留）
+### 仍是 `workdsh` 的地方（仅上游出处）
 
-Profile 侧的 **npm 包名、cordis 插件 id、服务键与插槽名**保持原样：
+Profile 源码已 fork 进本仓库 `profile/`（`apps/web` + `packages` + `profiles` + `upstream.json`，
+约 21 MB / 1300 文件；不含 `node_modules`、构建产物与官网站点）。npm 包名、cordis 插件 id、
+服务键、插槽名已与运行时标识一起全部改为 `quantdsh`：
 
-- 自有包名 `workdsh-contracts` / `workdsh-ui` / `workdsh-bundle` / `workdsh-plugin-*` / `workdsh-provider-*`
-- cordis 插件 id `workdsh-identity-local`、`workdsh-session-access`、`workdsh-tool-access`、`workdsh-workbenches` 等
-- 服务键 `workdshConnectors` / `workdshExperts` / `workdshIdentity` / `workdshAccess` 等
-- 插槽名 `workdsh.workbench.frame`
+- 包名 `quantdsh-contracts` / `quantdsh-ui` / `quantdsh-bundle` / `quantdsh-plugin-*` / `quantdsh-provider-*`
+- cordis 插件 id `quantdsh-identity-local`、`quantdsh-session-access`、`quantdsh-tool-access`、`quantdsh-workbenches` 等
+- 服务键 `quantdshConnectors` / `quantdshExperts` / `quantdshLibrary` / `quantdshIdentity` / `quantdshAccess` 等
+- 插槽名 `quantdsh.workbench.frame` —— 字节补丁的 `patchedSha256` 已按新替换内容重算（`originalSha256` 不变）
 
-它们定义在 Profile 源码里（另一个仓库），carrier 只按名字引用。**carrier 单方面改名会导致
-打包成功、启动后插件全部加载不到**，所以这一层随 Profile fork 进本仓库时一并改。
+**唯一保留 `workdsh` 的是 profile 内指向上游真实仓库的外部链接**（`github.com/techflag/workdsh`、
+`techflag.github.io`、star-history）。这些是出处标注，改掉就变成死链，因此原样保留。
 
 ## 二、模块职责
 
@@ -107,10 +109,9 @@ Profile 侧的 **npm 包名、cordis 插件 id、服务键与插槽名**保持�
    它的 `PACKAGE_DIRECTORIES` 用 `../../packages/...`，正好落在 Profile 源的 `packages/`。
    仓库根不满足这些条件，传根目录会直接抛 `Usage:` 或版本断言。
    ```sh
-   cd <profile-source>            # 默认 ../workdsh，可用 --source / QUANTDSH_SOURCE 覆盖
-   corepack yarn install --immutable
-   corepack pnpm --dir apps/web install --frozen-lockfile
-   corepack pnpm --dir apps/web build
+   cd profile/apps/web            # 本仓库内的 profile fork（可用 --source / QUANTDSH_SOURCE 覆盖）
+   corepack pnpm install --frozen-lockfile
+   corepack pnpm build
    ```
 
 首次发布还会下载锁定的官方 Desktop 产物（`upstream.json`：win-x64 为

@@ -1,10 +1,8 @@
 ; NSIS installer hooks for the QuantDSH carrier.
 ;
-; This is the Tauri port of workdsh/apps/desktop/build/installer.nsh, which
-; electron-builder ran as `customCheckAppRunning`. The rule it preserves is the
-; #469 fix: an upgrade must stop exactly the application process, never the
-; unrelated helpers below $INSTDIR (the bundled Node/Python runtimes the Host
-; spawns for a workspace).
+; The rule this preserves is the #469 fix: an upgrade must stop exactly the
+; application process, never the unrelated helpers below $INSTDIR (the bundled
+; Node/Python runtimes the Host spawns for a workspace).
 ;
 ; The handoff has three stages, in this order:
 ;   1. Ask the running instance to quit through the single-instance channel

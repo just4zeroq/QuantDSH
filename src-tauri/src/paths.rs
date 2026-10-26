@@ -63,13 +63,13 @@ fn user_data_flag() -> Option<PathBuf> {
 }
 
 /// Every filesystem location the carrier touches, resolved once at startup.
-/// Mirrors `bundledProfileDirectory`, `bundledPrimaryRuntime`, `bundledNodeExecutable`
-/// and `runtimeHome` from workdsh-main.ts, including the environment overrides.
+/// Covers the bundled profile directory, the bundled primary runtime, the bundled
+/// Node executable and the runtime home, including the environment overrides.
 ///
 /// `runtime_root` is no longer hard-wired to `<resources>/quantdsh-runtime`: it is
 /// whichever pack [`crate::runtime_pack::locate`] verified first. When the bundled
-/// tree is complete that is exactly the same path as before, so the Electron
-/// start-up path is unchanged.
+/// tree is complete that is exactly the same path as before, so start-up is
+/// unchanged.
 pub struct RuntimePaths {
     pub resource_dir: PathBuf,
     pub user_data: PathBuf,

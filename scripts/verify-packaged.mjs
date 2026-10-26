@@ -168,13 +168,13 @@ async function verifyPackagedCarrier(packagedRoot) {
   }
   const productPackages = new Set(PRODUCT_PACKAGES)
   const selected = profileManifest.dsh?.profile?.bundles ?? []
-  const selectedWorkdsh = selected.filter(name => name.startsWith('quantdsh-'))
-  const directWorkdsh = Object.keys(profileManifest.dependencies ?? {}).filter(name => name.startsWith('quantdsh-'))
-  if (selectedWorkdsh.length !== productPackages.size || selectedWorkdsh.some(name => !productPackages.has(name))) {
-    throw new Error(`Desktop must select exactly ${productPackages.size} QuantDSH product bundles, found ${selectedWorkdsh.join(', ')}`)
+  const selectedQuantdsh = selected.filter(name => name.startsWith('quantdsh-'))
+  const directQuantdsh = Object.keys(profileManifest.dependencies ?? {}).filter(name => name.startsWith('quantdsh-'))
+  if (selectedQuantdsh.length !== productPackages.size || selectedQuantdsh.some(name => !productPackages.has(name))) {
+    throw new Error(`Desktop must select exactly ${productPackages.size} QuantDSH product bundles, found ${selectedQuantdsh.join(', ')}`)
   }
-  if (directWorkdsh.length !== productPackages.size || directWorkdsh.some(name => !productPackages.has(name))) {
-    throw new Error(`Desktop must directly install exactly ${productPackages.size} QuantDSH product bundles, found ${directWorkdsh.join(', ')}`)
+  if (directQuantdsh.length !== productPackages.size || directQuantdsh.some(name => !productPackages.has(name))) {
+    throw new Error(`Desktop must directly install exactly ${productPackages.size} QuantDSH product bundles, found ${directQuantdsh.join(', ')}`)
   }
   const lockfile = readFileSync(join(profile, 'pnpm-lock.yaml'), 'utf8')
   for (const item of release.packages) {
@@ -195,7 +195,7 @@ async function verifyPackagedCarrier(packagedRoot) {
   const patch = readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')
   verifyDefaultComposition(patch)
   for (const name of release.packages.map(item => item.name).filter(name => !productPackages.has(name) && !ENTERPRISE_PACKAGES.includes(name))) {
-    if (['workdsh-contracts', 'workdsh-ui', 'workdsh-provider-browser-session'].includes(name)) continue // inserted by the bundle patch
+    if (['quantdsh-contracts', 'quantdsh-ui', 'quantdsh-provider-browser-session'].includes(name)) continue // inserted by the bundle patch
     if (!patch.includes(`name: ${name}`)) throw new Error(`Internal QuantDSH service is missing from Profile patch: ${name}`)
   }
   if (/file:(?:\/|[a-z]:)/iu.test(lockfile)) throw new Error('Bundled plugin lockfile contains a build-machine path')

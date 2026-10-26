@@ -1,0 +1,3 @@
+- insert:
+    - id: quantdsh-audit
+      name: quantdsh-plugin-audit

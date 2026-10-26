@@ -644,7 +644,7 @@ pub fn desktop_enterprise_patch(
         .map(|parent| parent.join("workspace"))
         .unwrap_or_else(|| home.join("..").join("workspace"));
     let mut text = format!(
-        "- id: workdsh-identity-local\n  disabled: true\n- insert:\n    - id: workdsh-enterprise-account-client\n      name: workdsh-provider-identity-enterprise\n    - id: workdsh-desktop-identity\n      name: workdsh-provider-identity-enterprise/desktop\n      config:\n        authFile: {auth_file}\n        principalId: {principal_id}\n        organizationId: {organization_id}\n        deviceId: {device_id}\n",
+        "- id: quantdsh-identity-local\n  disabled: true\n- insert:\n    - id: quantdsh-enterprise-account-client\n      name: quantdsh-provider-identity-enterprise\n    - id: quantdsh-desktop-identity\n      name: quantdsh-provider-identity-enterprise/desktop\n      config:\n        authFile: {auth_file}\n        principalId: {principal_id}\n        organizationId: {organization_id}\n        deviceId: {device_id}\n",
         auth_file = crate::plugin_archive_cache::js_string(&auth_file),
         principal_id = crate::plugin_archive_cache::js_string(&actor.id),
         organization_id = crate::plugin_archive_cache::js_string(&actor.organization_id),
@@ -652,11 +652,11 @@ pub fn desktop_enterprise_patch(
     );
     if collaboration {
         text.push_str(
-            "- insert:\n    - id: workdsh-desktop-collaboration\n      name: workdsh-plugin-enterprise-collaboration\n      config:\n        desktop: true\n",
+            "- insert:\n    - id: quantdsh-desktop-collaboration\n      name: quantdsh-plugin-enterprise-collaboration\n      config:\n        desktop: true\n",
         );
     }
     text.push_str(&format!(
-        "- id: workdsh-session-access\n  config:\n    autoBindFixedMemberSessions: true\n- id: workdsh-tool-access\n  config:\n    autoBindPersonalSessions: false\n    autoBindFixedMemberSessions: true\n- id: workspace-controller\n  config:\n    documentsDirectory: {workspace}\n",
+        "- id: quantdsh-session-access\n  config:\n    autoBindFixedMemberSessions: true\n- id: quantdsh-tool-access\n  config:\n    autoBindPersonalSessions: false\n    autoBindFixedMemberSessions: true\n- id: workspace-controller\n  config:\n    documentsDirectory: {workspace}\n",
         workspace = crate::plugin_archive_cache::js_string(&workspace),
     ));
     write_private(&patch, text.as_bytes())?;

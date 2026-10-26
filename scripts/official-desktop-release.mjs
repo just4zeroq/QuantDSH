@@ -78,7 +78,10 @@ export async function prepareOfficialRelease(desktopRoot, target) {
     if (target.startsWith('mac-')) execFileSync('/usr/bin/ditto', ['-x', '-k', archive, temporary], { stdio: 'inherit' })
     else {
       const require = createRequire(import.meta.url)
-      const sevenZip = process.env.QUANTDSH_7ZIP ?? require('7zip-bin').path7z
+      const sevenZipPackage = require('7zip-bin')
+      // 7zip-bin@5 exports `path7za` / `path7x`; `path7z` never existed.
+      const sevenZip = process.env.QUANTDSH_7ZIP ?? sevenZipPackage.path7za ?? sevenZipPackage.path7z
+      if (!sevenZip) throw new Error('No 7-Zip binary available; install 7zip-bin or set QUANTDSH_7ZIP')
       execFileSync(sevenZip, ['x', '-y', archive, '-o' + temporary], { stdio: 'inherit' })
       const inner = nestedArchive(temporary)
       if (inner) execFileSync(sevenZip, ['x', '-y', inner, '-o' + join(temporary, 'application')], { stdio: 'inherit' })

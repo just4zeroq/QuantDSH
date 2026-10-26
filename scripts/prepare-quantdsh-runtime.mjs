@@ -72,10 +72,10 @@ function verifyInstalled() {
   for (const id of ['skillhub', 'dsh-market']) {
     if (!config.stdout.includes('id: ' + id)) throw new Error('Missing community catalog integration: ' + id)
   }
-  for (const id of ['workdsh-installation-probe', 'workdsh-identity-local', 'workdsh-access', 'workdsh-audit', 'workdsh-workbenches']) {
+  for (const id of ['quantdsh-installation-probe', 'quantdsh-identity-local', 'quantdsh-access', 'quantdsh-audit', 'quantdsh-workbenches']) {
     if (!config.stdout.includes('id: ' + id)) throw new Error('Missing required infrastructure: ' + id)
   }
-  for (const name of ['workdsh-plugin-office', 'workdsh-plugin-activity', 'workdsh-plugin-quality-analysis']) {
+  for (const name of ['quantdsh-plugin-office', 'quantdsh-plugin-activity', 'quantdsh-plugin-quality-analysis']) {
     if (existsSync(join(profile, 'node_modules', name)) || config.stdout.includes('name: ' + name)) throw new Error('External feature was bundled by default: ' + name)
   }
   run(process.execPath, [join(desktopRoot, 'scripts/verify-product-plugin-inventory.mjs'), output])

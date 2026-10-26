@@ -56,9 +56,9 @@ try {
   for (const client of release.officialWeb.clients.filter(row => !row.conditional)) {
     if (!ids.has(client.package)) throw new Error('Unconditional official Web client missing at runtime: ' + client.package)
   }
-  for (const name of [...PRODUCT_PACKAGES, 'workdsh-bundle']) if (!ids.has(name)) throw new Error('Owned client missing at runtime: ' + name + '; owned graph=' + [...ids].filter(row => row.startsWith('workdsh-')).join(',') + '; ' + diagnostics())
-  const owned = [...ids].filter(name => name.startsWith('workdsh-')).sort()
-  if (JSON.stringify(owned) !== JSON.stringify([...PRODUCT_PACKAGES, 'workdsh-bundle'].sort())) throw new Error('Unexpected default owned client inventory')
+  for (const name of [...PRODUCT_PACKAGES, 'quantdsh-bundle']) if (!ids.has(name)) throw new Error('Owned client missing at runtime: ' + name + '; owned graph=' + [...ids].filter(row => row.startsWith('quantdsh-')).join(',') + '; ' + diagnostics())
+  const owned = [...ids].filter(name => name.startsWith('quantdsh-')).sort()
+  if (JSON.stringify(owned) !== JSON.stringify([...PRODUCT_PACKAGES, 'quantdsh-bundle'].sort())) throw new Error('Unexpected default owned client inventory')
   for (const batch of graph.batches) {
     const address = new URL(batch.url, url)
     if (address.origin !== new URL(url).origin) throw new Error('Client batch escaped the loopback runtime origin')

@@ -1,33 +1,30 @@
-//! QuantDSH — a 100% functional Tauri port of the Electron desktop carrier
-//! (`workdsh/apps/desktop/src/workdsh-main.ts`).
+//! QuantDSH — the desktop carrier for the bundled DeepSeek Harness runtime.
 //!
-//! The module layout mirrors the TypeScript source one-to-one:
+//! Each module owns one concern of the carrier process:
 //!
-//! | TypeScript                | Rust                     |
-//! |---------------------------|--------------------------|
-//! | `workdsh-main.ts`         | [`app`]                  |
-//! | path helpers in `workdsh-main.ts` | [`paths`]        |
-//! | `connection-mode.ts`      | [`connection`]           |
-//! | `deployment-config.ts`    | [`deployment_config`]    |
-//! | `enterprise-auth.ts`      | [`enterprise_auth`]      |
-//! | `enterprise-plugins.ts`   | [`enterprise_plugins`]   |
-//! | `local-runtime.ts`        | [`local_runtime`]        |
-//! | `official-command.ts`     | [`official_command`]     |
-//! | `owned-process.ts`        | [`owned_process`]        |
-//! | `runtime-port.ts`         | [`runtime_port`]         |
-//! | `runtime-diagnostics.ts`  | [`runtime_diagnostics`]  |
-//! | `command-management.ts`   | [`command_management`]   |
-//! | `connection-entry.ts` + `connection-preload.ts` | [`pages`] |
-//! | `startBrowserWorker` in `workdsh-main.ts` | [`browser_worker`] |
-//! | `command-cli.ts`          | `runtime-cli/command-cli.mjs` (outside the crate) |
-//! | `plugin-archive-cache.ts` | [`plugin_archive_cache`] |
-//! | `runtime-compatibility.ts`| [`runtime_compatibility`]|
-//! | — (Tauri-only)            | [`runtime_pack`]         |
+//! | Module                    | Responsibility |
+//! |---------------------------|----------------|
+//! | [`app`]                   | 全局状态机、窗口与运行时生命周期 |
+//! | [`paths`]                 | 运行时目录与 `QUANTDSH_*` 环境覆盖解析 |
+//! | [`connection`]            | 渲染进程连接与分区标识 |
+//! | [`deployment_config`]     | 管理员部署配置校验 |
+//! | [`enterprise_auth`]       | key 登录、校验、登出 |
+//! | [`enterprise_plugins`]    | 企业插件探测与组合安装 |
+//! | [`local_runtime`]         | Profile 物化与 `cordis.patch.yml` 合成 |
+//! | [`official_command`]      | 官方命令执行 |
+//! | [`owned_process`]         | 子进程登记与清理 |
+//! | [`runtime_port`]          | 本地端口分配 |
+//! | [`runtime_diagnostics`]   | 运行时诊断 |
+//! | [`command_management`]    | 命令管理 |
+//! | [`pages`]                 | 入口页与预加载 |
+//! | [`browser_worker`]        | 隐藏浏览器 worker（CDP） |
+//! | [`plugin_archive_cache`]  | 插件归档缓存 |
+//! | [`runtime_compatibility`] | 运行时兼容与撤销记录 |
+//! | [`runtime_pack`]          | 离线运行时包校验与修复 |
 //!
-//! `runtime_pack` has no TypeScript counterpart: the Electron carrier treats a
-//! damaged runtime as fatal (`Bundled Node.js runtime is missing`). It keeps the
-//! same fail-closed contract — never start a host process against a partial tree
-//! — while making the failure repairable through an offline archive.
+//! `runtime_pack` keeps a fail-closed contract — never start a host process
+//! against a partial tree — while making the failure repairable through an
+//! offline archive instead of being fatal.
 
 mod app;
 mod browser_worker;

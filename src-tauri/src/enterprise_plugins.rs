@@ -6,9 +6,9 @@ use std::path::Path;
 use tokio::process::Command;
 
 pub const ENTERPRISE_PLUGIN_NAMES: [&str; 2] =
-    ["workdsh-provider-identity-enterprise", "workdsh-plugin-enterprise-collaboration"];
+    ["quantdsh-provider-identity-enterprise", "quantdsh-plugin-enterprise-collaboration"];
 
-const CONNECTION_BUNDLE: &str = "workdsh-enterprise-connection";
+const CONNECTION_BUNDLE: &str = "quantdsh-enterprise-connection";
 const COMMAND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(240);
 
 fn read_json(path: &Path) -> Result<Value, String> {
@@ -197,38 +197,38 @@ mod tests {
     #[test]
     fn declared_plugin_without_install_errors() {
         let dir = temp_dir("declared");
-        std::fs::write(dir.join("package.json"), r#"{"dependencies":{"workdsh-provider-identity-enterprise":"1.0.0"}}"#).unwrap();
+        std::fs::write(dir.join("package.json"), r#"{"dependencies":{"quantdsh-provider-identity-enterprise":"1.0.0"}}"#).unwrap();
         let error = installed_enterprise_plugins(&dir, "1.0.0").unwrap_err();
-        assert_eq!(error, "企业插件尚未完成安装：workdsh-provider-identity-enterprise");
+        assert_eq!(error, "企业插件尚未完成安装：quantdsh-provider-identity-enterprise");
     }
 
     #[test]
     fn incompatible_peer_rejected() {
         let dir = temp_dir("peer");
-        std::fs::write(dir.join("package.json"), r#"{"dependencies":{"workdsh-provider-identity-enterprise":"1.0.0"}}"#).unwrap();
-        let plugin = dir.join("node_modules").join("workdsh-provider-identity-enterprise");
+        std::fs::write(dir.join("package.json"), r#"{"dependencies":{"quantdsh-provider-identity-enterprise":"1.0.0"}}"#).unwrap();
+        let plugin = dir.join("node_modules").join("quantdsh-provider-identity-enterprise");
         std::fs::create_dir_all(&plugin).unwrap();
         std::fs::write(
             plugin.join("package.json"),
-            format!(r#"{{"name":"workdsh-provider-identity-enterprise","exports":{{"./desktop":"./desktop.js"}},"peerDependencies":{{"@deepseek-ai/dsh":"9.9.9"}}}}"#),
+            format!(r#"{{"name":"quantdsh-provider-identity-enterprise","exports":{{"./desktop":"./desktop.js"}},"peerDependencies":{{"@deepseek-ai/dsh":"9.9.9"}}}}"#),
         )
         .unwrap();
         let error = installed_enterprise_plugins(&dir, "1.0.0").unwrap_err();
-        assert_eq!(error, "企业插件与当前 DSH 不兼容：workdsh-provider-identity-enterprise");
+        assert_eq!(error, "企业插件与当前 DSH 不兼容：quantdsh-provider-identity-enterprise");
     }
 
     #[test]
     fn installed_plugin_listed() {
         let dir = temp_dir("installed");
-        std::fs::write(dir.join("package.json"), r#"{"dependencies":{"workdsh-provider-identity-enterprise":"1.0.0"}}"#).unwrap();
-        let plugin = dir.join("node_modules").join("workdsh-provider-identity-enterprise");
+        std::fs::write(dir.join("package.json"), r#"{"dependencies":{"quantdsh-provider-identity-enterprise":"1.0.0"}}"#).unwrap();
+        let plugin = dir.join("node_modules").join("quantdsh-provider-identity-enterprise");
         std::fs::create_dir_all(&plugin).unwrap();
         std::fs::write(
             plugin.join("package.json"),
-            format!(r#"{{"name":"workdsh-provider-identity-enterprise","exports":{{"./desktop":"./desktop.js"}},"peerDependencies":{{"@deepseek-ai/dsh":"1.0.0"}}}}"#),
+            format!(r#"{{"name":"quantdsh-provider-identity-enterprise","exports":{{"./desktop":"./desktop.js"}},"peerDependencies":{{"@deepseek-ai/dsh":"1.0.0"}}}}"#),
         )
         .unwrap();
         let names = installed_enterprise_plugins(&dir, "1.0.0").unwrap();
-        assert_eq!(names, vec!["workdsh-provider-identity-enterprise".to_string()]);
+        assert_eq!(names, vec!["quantdsh-provider-identity-enterprise".to_string()]);
     }
 }

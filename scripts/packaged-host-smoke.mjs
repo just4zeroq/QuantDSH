@@ -2,18 +2,19 @@ import { writeFileSync } from 'node:fs'
 import { dirname, join, delimiter } from 'node:path'
 import { PRODUCT_PACKAGES } from './quantdsh-package-boundary.mjs'
 
-// Service keys and package names are owned by the Profile source, not the
-// carrier: they must keep their shipped spelling even though the product was
-// renamed, otherwise the packaged Host starts but every lookup misses.
+// Service keys and package names are owned by the Profile source: they must match
+// the names the Profile actually provides, otherwise the packaged Host starts but
+// every lookup misses. Both layers were renamed to `quantdsh` together — changing
+// one side alone produces a silent, test-green failure.
 export const PRODUCT_SERVICES = Object.freeze({
-  'workdsh-plugin-connectors': 'workdshConnectors',
-  'workdsh-plugin-experts': 'workdshExperts',
-  'workdsh-plugin-library': 'workdshLibrary',
-  'workdsh-plugin-projects': 'workdshProjects',
-  'workdsh-plugin-skills': 'workdshSkills',
-  'workdsh-plugin-workbenches': 'workdshWorkbenchRegistration',
+  'quantdsh-plugin-connectors': 'quantdshConnectors',
+  'quantdsh-plugin-experts': 'quantdshExperts',
+  'quantdsh-plugin-library': 'quantdshLibrary',
+  'quantdsh-plugin-projects': 'quantdshProjects',
+  'quantdsh-plugin-skills': 'quantdshSkills',
+  'quantdsh-plugin-workbenches': 'quantdshWorkbenchRegistration',
 })
-const REQUIRED_PLATFORM_SERVICES = ['profileContext', 'loader', 'storageDomain', 'connection', 'workdshIdentity', 'workdshAccess', 'sessionController', 'workspaceController', 'tools']
+const REQUIRED_PLATFORM_SERVICES = ['profileContext', 'loader', 'storageDomain', 'connection', 'quantdshIdentity', 'quantdshAccess', 'sessionController', 'workspaceController', 'tools']
 
 /** Inspect mandatory product fibers only. Optional official/model plugins may
  * legitimately remain lazy or unconfigured in a fresh personal installation. */
@@ -25,7 +26,7 @@ export function inspectStartedHost(ctx, products, platformServices) {
   for (const [name, service] of Object.entries(products)) {
     if (!selected.includes(name)) throw new Error('Packaged Host did not start selected product: ' + name)
     if (!ctx.get(service)) throw new Error('Packaged Host service is unavailable: ' + service)
-    const runtimeName = name === 'workdsh-plugin-workbenches' ? 'workdsh-workbenches' : name
+    const runtimeName = name === 'quantdsh-plugin-workbenches' ? 'quantdsh-workbenches' : name
     const fibers = runtimes.filter(runtime => runtime.name === runtimeName).flatMap(runtime => [...runtime.fibers])
     if (!fibers.length || fibers.some(fiber => fiber.state !== 2)) throw new Error('Packaged Host product initialization is incomplete: ' + name)
   }

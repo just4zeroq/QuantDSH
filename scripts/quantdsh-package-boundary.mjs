@@ -1,19 +1,19 @@
 // Review this inventory when the QuantDSH release adds or removes a package.
 // Only product packages are selected or exposed by the default personal Profile.
 export const PRODUCT_PACKAGES = Object.freeze([
-  'workdsh-plugin-connectors',
-  'workdsh-plugin-experts',
-  'workdsh-plugin-library',
-  'workdsh-plugin-projects',
-  'workdsh-plugin-skills',
-  'workdsh-plugin-workbenches',
+  'quantdsh-plugin-connectors',
+  'quantdsh-plugin-experts',
+  'quantdsh-plugin-library',
+  'quantdsh-plugin-projects',
+  'quantdsh-plugin-skills',
+  'quantdsh-plugin-workbenches',
 ])
 
 // External enterprise packages: installed explicitly, never included in the base installer.
 export const ENTERPRISE_PACKAGES = Object.freeze([
-  'workdsh-provider-identity-enterprise',
-  'workdsh-plugin-enterprise-collaboration',
-  'workdsh-enterprise-connection',
+  'quantdsh-provider-identity-enterprise',
+  'quantdsh-plugin-enterprise-collaboration',
+  'quantdsh-enterprise-connection',
 ])
 
 // Keep the already shipped community catalog integrations on the same Profile.
@@ -23,35 +23,35 @@ export const CATALOG_PACKAGES = Object.freeze({
 })
 
 export const RELEASE_PACKAGES = Object.freeze([
-  'workdsh-contracts',
-  'workdsh-ui',
-  'workdsh-provider-identity-local',
-  'workdsh-provider-browser-session',
-  'workdsh-plugin-audit',
-  'workdsh-plugin-access',
-  'workdsh-plugin-skills',
-  'workdsh-plugin-experts',
-  'workdsh-plugin-connectors',
-  'workdsh-plugin-library',
-  'workdsh-bundle',
-  'workdsh-plugin-projects',
-  'workdsh-plugin-workbenches',
+  'quantdsh-contracts',
+  'quantdsh-ui',
+  'quantdsh-provider-identity-local',
+  'quantdsh-provider-browser-session',
+  'quantdsh-plugin-audit',
+  'quantdsh-plugin-access',
+  'quantdsh-plugin-skills',
+  'quantdsh-plugin-experts',
+  'quantdsh-plugin-connectors',
+  'quantdsh-plugin-library',
+  'quantdsh-bundle',
+  'quantdsh-plugin-projects',
+  'quantdsh-plugin-workbenches',
 ])
 
 export const PACKAGE_DIRECTORIES = Object.freeze({
-  'workdsh-contracts': '../../packages/contracts',
-  'workdsh-ui': '../../packages/ui',
-  'workdsh-provider-identity-local': '../../packages/providers/identity-local',
-  'workdsh-provider-browser-session': '../../packages/providers/browser-session',
-  'workdsh-plugin-audit': '../../packages/plugins/audit',
-  'workdsh-plugin-access': '../../packages/plugins/access',
-  'workdsh-plugin-skills': '../../packages/plugins/skills',
-  'workdsh-plugin-experts': '../../packages/plugins/experts',
-  'workdsh-plugin-connectors': '../../packages/plugins/connectors',
-  'workdsh-plugin-library': '../../packages/plugins/library',
-  'workdsh-bundle': '../../packages/bundle',
-  'workdsh-plugin-projects': '../../packages/plugins/projects',
-  'workdsh-plugin-workbenches': '../../packages/plugins/workbenches',
-  'workdsh-provider-identity-enterprise': '../../packages/providers/identity-enterprise',
-  'workdsh-plugin-enterprise-collaboration': '../../packages/plugins/enterprise-collaboration',
+  'quantdsh-contracts': '../../packages/contracts',
+  'quantdsh-ui': '../../packages/ui',
+  'quantdsh-provider-identity-local': '../../packages/providers/identity-local',
+  'quantdsh-provider-browser-session': '../../packages/providers/browser-session',
+  'quantdsh-plugin-audit': '../../packages/plugins/audit',
+  'quantdsh-plugin-access': '../../packages/plugins/access',
+  'quantdsh-plugin-skills': '../../packages/plugins/skills',
+  'quantdsh-plugin-experts': '../../packages/plugins/experts',
+  'quantdsh-plugin-connectors': '../../packages/plugins/connectors',
+  'quantdsh-plugin-library': '../../packages/plugins/library',
+  'quantdsh-bundle': '../../packages/bundle',
+  'quantdsh-plugin-projects': '../../packages/plugins/projects',
+  'quantdsh-plugin-workbenches': '../../packages/plugins/workbenches',
+  'quantdsh-provider-identity-enterprise': '../../packages/providers/identity-enterprise',
+  'quantdsh-plugin-enterprise-collaboration': '../../packages/plugins/enterprise-collaboration',
 })

@@ -1,9 +1,8 @@
 //! QuantDSH desktop carrier (Tauri edition).
 //!
 //! The binary only forwards to the library entry point so that the whole
-//! carrier — including the hidden browser-worker mode — is a single executable,
-//! exactly like the Electron build (`workdsh-main.js` is both the app and the
-//! worker).
+//! carrier — including the hidden browser-worker mode — is a single executable
+//! that serves both roles.
 
 // Silence the unused-crate warning for a binary that only re-exports the lib.
 #![allow(clippy::needless_borrow)]
