@@ -20,13 +20,13 @@
 > 但不改变已核对的取数事实（§2.3 仍然有效）：
 > 1. **V1 只做 K 线**（成交价，现货 + 永续），先把「配置数据源 → 拉取 → 落库 → 目录 → 体检」跑通；
 >    资金费率、持仓量、逐笔、盘口全部后移（§1.5）。
-> 2. **后端由 Rust 换成 Python FastAPI + ccxt**：`src-tauri/datahub` 停用，
+> 2. **后端由 Rust 换成 Python FastAPI + ccxt**：`src-tauri/datahub` 已删除（git 历史仍可查），
 >    新实现在 `services/datahub-api`（§5 重写）。
 > 3. **数据源入库**：`sources` 表（SQLite）成为唯一事实来源，新增交易所或把某家切到
 >    「我们官方的聚合 API」都是改配置，不是改代码（§4.5）。
-> 4. **安装包自带 Python 运行时**，用户机器不需要装 Python（§10）。
+> 4. **安装包自带 Python 运行时**，用户机器不需要装 Python（§9）。
 >
-> 这三条带来一个必须写进模型的区分：**venue（数据属于哪个交易所）≠ source（从哪条通道取）**。
+> 这些约束带来一个必须写进模型的区分：**venue（数据属于哪个交易所）≠ source（从哪条通道取）**。
 > 详见 §4.5，这是整个设计里最容易做错的一处。
 
 ---
@@ -35,7 +35,7 @@
 
 | 决策 | 结论 |
 |---|---|
-| **后端** | **Python 3.12 + FastAPI**（`services/datahub-api`），Rust `quantdsh-datahub` 停用；HTTP 契约保持 `/health` + `/api/*` + Bearer token 不变，已发布的前端不用改 |
+| **后端** | **Python 3.12 + FastAPI**（`services/datahub-api`），Rust `quantdsh-datahub` 已删除；HTTP 契约保持 `/health` + `/api/*` + Bearer token 不变，已发布的前端不用改 |
 | **取数库** | **ccxt**（仅 REST 方法，不用 `watch*`） |
 | **运行时分发** | 安装包自带可重定位 CPython（`runtime/python`），启动命令 `python -m app`，`-s` 隔离用户 site-packages |
 | **接入通道** | **只接 REST（HTTP 轮询），不接 WebSocket** |
@@ -1036,9 +1036,10 @@ fetch → imported 表 → 门禁检查 → 通过：提升到 bronze（同一�
 | 开发 | 自动回退到 `services/datahub-api/.venv`（仅 debug 构建），或用 `QUANTDSH_PYTHON` / `QUANTDSH_DATAHUB_DIR` 覆盖 |
 | 排障 | 服务的 stderr 落到 `<data_dir>/datahub.log`；release 构建没有控制台，这是唯一线索 |
 
-**DuckDB 版本必须锁在 `1.5.6`**：Rust 端 pin 的 `duckdb = "=1.10506.1"` 就是 engine 1.5.6，
-Python 端如果装 2.0，存储格式版本不同，打开已有 `market.duckdb` 会失败。这一条写在
-`requirements.txt` 的注释里。
+**DuckDB 版本必须锁在 `1.5.6`**：用户机上已有的 `market.duckdb` 是 Rust 端
+（`duckdb = "=1.10506.1"`，即 engine 1.5.6）写出来的，存储格式版本不同就打不开。
+Rust 那个 crate 现在已经删除，但这个 pin 不能动——它锁的是**磁盘上的文件格式**，不是依赖习惯。
+这一条写在 `requirements.txt` 的注释里。
 
 **体积（实测）**：解包 + 装依赖后 **291 MB**，裁掉调试符号与头文件后 **206 MB**。构成大致是
 `ccxt` 67 MB、`cryptography` 10 MB、`pip` 10 MB、`duckdb` 1 MB、`Tcl/Tk` 11 MB，其余是标准库。

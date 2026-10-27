@@ -1,16 +1,22 @@
 # 数据工坊与行情数据服务：运行机理与故障复盘
 
-本文记录 `quantdsh-plugin-data` / `quantdsh-plugin-market` 两个插件页与 Rust 行情服务
-（`src-tauri/datahub`）的交付链路，以及 2026-10-27 两次「页面退回旧版本」事故的根因。
+本文记录 `quantdsh-plugin-data` / `quantdsh-plugin-market` 两个插件页与行情服务
+（`services/datahub-api`）的交付链路，以及 2026-10-27 两次「页面退回旧版本」事故的根因。
 下次改这两个插件后，请先读第 5 节的排查顺序，能省掉一轮瞎猜。
+
+> 2026-10-27 之后：行情服务已从 Rust sidecar（`src-tauri/datahub`，已删除）换成 Python
+> FastAPI + ccxt（`services/datahub-api`，随安装包自带 CPython 启动）。**HTTP 契约没变**
+> （`/health` 免鉴权、其余 Bearer token、`datahub.json` 字段不变），所以下面所有关于
+> 客户端取数、注入快照、排查顺序的结论仍然有效；变的只有服务实现位置和 K 线表名
+> （`bars` → `ohlcv`）。本文其余部分的 Rust 描述按历史记录阅读。
 
 ## 一、组成
 
 | 部分 | 位置 | 说明 |
 |---|---|---|
-| 行情数据服务（sidecar） | `src-tauri/datahub` | Rust，axum + DuckDB，默认 `127.0.0.1:17821`；**除 `/health` 外全部要求 Bearer token** |
-| 数据落盘 | `%LOCALAPPDATA%\QuantDSH\data` | `market.duckdb`（K 线 `bars` 表）、`meta.sqlite`（目录/任务/覆盖率）、`datahub.json`（端口 + token） |
-| 进程编排 | `src-tauri/src/datahub_daemon.rs` | 随载体启动 sidecar；**并把 endpoint 注入窗口初始化脚本** |
+| 行情数据服务（sidecar） | `services/datahub-api`（旧：`src-tauri/datahub`，已删除） | Python FastAPI + ccxt + DuckDB，默认 `127.0.0.1:17821`；**除 `/health` 外全部要求 Bearer token** |
+| 数据落盘 | `%LOCALAPPDATA%\QuantDSH\data` | `market.duckdb`（K 线 `ohlcv` 表，旧名 `bars`）、`meta.sqlite`（数据源/目录/任务/覆盖率）、`datahub.json`（端口 + token） |
+| 进程编排 | `src-tauri/src/datahub_daemon.rs` | 随载体启动服务（`runtime/python/python.exe -s -B -m app`）；**并把 endpoint 注入窗口初始化脚本** |
 | 数据工坊页面 | `profile/packages/plugins/data` | 普通插件页（非 workbench）：`sidebar.panellist` 注册 `数据工坊`，`order: -10`；页面只有 行情 / 数据 / 管理 三页 |
 | 行情页面 | `profile/packages/plugins/market` | 独立产品插件 |
 | 客户端构建 | `profile/apps/web/scripts/build-{data,market}.mjs` | esbuild 打包 `src/client.tsx` → `dist/client.browser.js` |
