@@ -14,15 +14,17 @@
     "prepare:quantdsh-runtime": "node scripts/prepare-quantdsh-runtime.mjs",
     "prepare:quantdsh-primary-runtime": "node scripts/prepare-quantdsh-primary-runtime.mjs",
     "prepare:quantdsh-command": "node scripts/prepare-quantdsh-command.mjs",
-    "pack:runtime": "node scripts/prepare-deployment-config.mjs && node scripts/pack-quantdsh-profile.mjs ./profile/apps/web && node scripts/prepare-quantdsh-runtime.mjs && node scripts/prepare-quantdsh-primary-runtime.mjs && node scripts/prepare-quantdsh-command.mjs",
+    "prepare:python-runtime": "node scripts/prepare-python-runtime.mjs",
+    "pack:runtime": "node scripts/prepare-deployment-config.mjs && node scripts/pack-quantdsh-profile.mjs ./profile/apps/web && node scripts/prepare-quantdsh-runtime.mjs && node scripts/prepare-quantdsh-primary-runtime.mjs && node scripts/prepare-quantdsh-command.mjs && node scripts/prepare-python-runtime.mjs",
     "pack:runtime-archive": "node scripts/make-runtime-pack.mjs",
     "release": "node scripts/release.mjs",
     "release:win": "node scripts/release.mjs --target win-x64 --source ./profile/apps/web",
     "release:mac-arm": "node scripts/release.mjs --target mac-arm64 --source ./profile/apps/web",
     "release:mac-x64": "node scripts/release.mjs --target mac-x64 --source ./profile/apps/web",
     "verify:packaged": "node scripts/verify-packaged.mjs",
+    "verify:bundled-runtime": "python scripts/verify_bundled_runtime.py",
     "tauri": "tauri",
-    "check:pack": "node scripts/prepare-deployment-config.mjs && node scripts/pack-quantdsh-profile.mjs ./profile/apps/web && node scripts/prepare-quantdsh-runtime.mjs && node scripts/prepare-quantdsh-primary-runtime.mjs && node scripts/prepare-quantdsh-command.mjs"
+    "check:pack": "node scripts/prepare-deployment-config.mjs && node scripts/pack-quantdsh-profile.mjs ./profile/apps/web && node scripts/prepare-quantdsh-runtime.mjs && node scripts/prepare-quantdsh-primary-runtime.mjs && node scripts/prepare-quantdsh-command.mjs && node scripts/prepare-python-runtime.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.9.0",

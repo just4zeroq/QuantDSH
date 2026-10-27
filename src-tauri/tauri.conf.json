@@ -37,9 +37,11 @@
     ],
     "resources": {
       "../build/quantdsh-runtime": "quantdsh-runtime",
-      "../build/deployment/quantdsh-config.json": "quantdsh-config.json"
+      "../build/deployment/quantdsh-config.json": "quantdsh-config.json",
+      "../services/datahub-api/app": "datahub-api/app",
+      "../services/datahub-api/requirements.txt": "datahub-api/requirements.txt",
+      "../build/python-runtime": "runtime"
     },
-    "externalBin": ["quantdsh-datahub"],
     "macOS": {
       "entitlements": "entitlements.mac.plist",
       "frameworks": [],

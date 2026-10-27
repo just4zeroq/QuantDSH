@@ -2369,7 +2369,7 @@ pub fn run() {
             // Start the market-data sidecar so the data workbench has a backend to
             // query. It writes a port file; `datahub_daemon` waits for it and the
             // endpoint is then injected into every webview below.
-            crate::datahub_daemon::spawn_datahub();
+            crate::datahub_daemon::spawn_datahub(app.handle());
             let started = carrier.clone();
             tauri::async_runtime::spawn(async move {
                 started.start().await;

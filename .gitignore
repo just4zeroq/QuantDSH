@@ -27,10 +27,20 @@ profile/**/.turbo/
 *.app.tar.gz
 *.app.tar.gz.sig
 
-# The marketplace data sidecar is built from src-tauri/datahub; the staged
-# binaries are inputs to `cargo build`/`tauri build`, never sources.
+# The data service used to be a Rust sidecar; the staged binary is an input to
+# `cargo build`/`tauri build`, never a source.
 src-tauri/binaries/
 src-tauri/quantdsh-datahub-*.exe
+
+# Python data service: the local venv and the bundled interpreter are build
+# inputs (scripts/prepare-python-runtime.mjs regenerates them), not sources.
+services/datahub-api/.venv/
+services/datahub-api/__pycache__/
+services/datahub-api/**/__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
 
 # Local agent workspace (memory, skills cache); machine-specific.
 .workbuddy/

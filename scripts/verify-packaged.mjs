@@ -137,6 +137,23 @@ async function verifyPackagedCarrier(packagedRoot) {
   parseDeploymentConfig(JSON.parse(packagedDeployment.toString('utf8')))
   if (!packagedDeployment.equals(generatedDeployment)) throw new Error('Packaged deployment configuration differs from this build')
 
+  // The market-data service is a Python app, so the installer must carry its own
+  // interpreter — a machine without Python still has to start it. Verify by
+  // importing every wheel from the packaged interpreter with `-s` (no user
+  // site-packages): a runtime that only works because the build machine had
+  // these packages installed would pass an existence check and fail on the user.
+  const datahubApp = [join(packagedRoot, 'datahub-api', 'app', '__main__.py'), join(packagedRoot, 'datahub-api', 'app', 'app', '__main__.py')]
+    .find(candidate => existsSync(candidate))
+  if (!datahubApp) throw new Error(`Packaged market-data service is missing under ${join(packagedRoot, 'datahub-api')}`)
+  const bundledPython = platform === 'win32'
+    ? join(packagedRoot, 'runtime', 'python', 'python.exe')
+    : join(packagedRoot, 'runtime', 'python', 'bin', 'python3')
+  if (!existsSync(bundledPython)) throw new Error('Packaged Python runtime is missing: ' + bundledPython)
+  const imports = run(bundledPython, ['-s', '-B', '-c', 'import fastapi, uvicorn, ccxt, duckdb; print(duckdb.__version__)'],
+    { encoding: 'utf8', timeout: 120_000, env: { ...process.env, PYTHONPATH: '', PYTHONHOME: '', PYTHONUTF8: '1' } })
+  console.log(`Packaged market-data runtime imports passed (duckdb ${String(imports.stdout).trim()})`)
+
+
   const runtime = join(packagedRoot, 'quantdsh-runtime')
   if (existsSync(join(runtime, 'node'))) throw new Error('Desktop contains a duplicate Node runtime outside the official primary runtime')
   const primary = JSON.parse(readFileSync(join(runtime, 'primary-runtime', 'runtime.json'), 'utf8'))

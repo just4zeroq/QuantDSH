@@ -69,15 +69,20 @@ run(node, [script('prepare-quantdsh-runtime.mjs')], { ...process.env, QUANTDSH_R
 run(node, [script('prepare-quantdsh-primary-runtime.mjs')], { ...process.env, QUANTDSH_MAC_ARCH: target === 'mac-x64' ? 'x64' : target === 'mac-arm64' ? 'arm64' : undefined })
 // 5. Ship the official command manager and the installed dsh command.
 run(node, [script('prepare-quantdsh-command.mjs')], { ...process.env, QUANTDSH_MAC_ARCH: target === 'mac-x64' ? 'x64' : target === 'mac-arm64' ? 'arm64' : undefined })
-// 6. Derive the Tauri icon set from the shared brand artwork.
+// 6. Fetch the bundled CPython and install the market-data service into it.
+//    The data service is a FastAPI app; bundling the interpreter is what lets the
+//    installer run on a machine with no Python at all. `tauri.conf.json` maps
+//    `build/python-runtime` to `runtime/`, so this step must run before tauri.
+run(node, [script('prepare-python-runtime.mjs')])
+// 7. Derive the Tauri icon set from the shared brand artwork.
 run(node, [script('generate-icons.mjs')])
-// 7. Package the same runtime tree as the offline repair archive. A damaged or
+// 8. Package the same runtime tree as the offline repair archive. A damaged or
 //    missing runtime is repaired by importing this file, without re-downloading
 //    the installer; `src-tauri/src/runtime_pack.rs` owns the receiving side.
 run(node, [script('make-runtime-pack.mjs'), '--target', target])
 
 if (!skipBuild) {
-  // 8. Build and bundle the Tauri carrier.
+  // 9. Build and bundle the Tauri carrier.
   const tauri = process.platform === 'win32' ? 'npx.cmd' : 'npx'
   const buildArgs = ['tauri', 'build']
   if (target === 'mac-x64') buildArgs.push('--target', 'x86_64-apple-darwin')
@@ -109,7 +114,7 @@ if (!skipBuild) {
   }
 }
 
-// 9. Verify the produced artifact contains exactly the pinned runtime.
+// 10. Verify the produced artifact contains exactly the pinned runtime.
 const bundleRoot = join(root, 'src-tauri', 'target', 'release', 'bundle')
 const candidates = []
 function collect(directory, depth = 0) {
