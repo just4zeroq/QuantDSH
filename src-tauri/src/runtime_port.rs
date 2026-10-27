@@ -243,6 +243,17 @@ pub fn runtime_port_conflict(selection: &RuntimePort, output: &str) -> Option<St
 mod tests {
     use super::*;
 
+    /// Compile-time probe: start_runtime spawns this future's owner, so the
+    /// future must be Send. Isolates the non-Send site when tokio only reports
+    /// the opaque `impl Future` boundary.
+    #[allow(dead_code)]
+    fn assert_prepare_runtime_port_future_is_send() {
+        fn assert_send<T: Send>(_: T) {}
+        let home = std::env::temp_dir();
+        let patches: Vec<PathBuf> = Vec::new();
+        assert_send(prepare_runtime_port(&home, &patches, RuntimePortOptions::default()));
+    }
+
     #[test]
     fn detects_webserver_override() {
         let documents = load_lenient("- id: webserver\n  config:\n    host: 127.0.0.1\n").unwrap();

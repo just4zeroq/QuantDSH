@@ -8,7 +8,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
@@ -57,7 +57,14 @@ const OUTPUT_LIMIT: usize = 16_384;
 /// the `page.loadURL(...).catch(...)` rollback branch. The official Host has
 /// already printed its ready URL by then, so a loopback surface that has not
 /// finished loading in this window is a dead one.
-const WINDOW_LOAD_TIMEOUT: Duration = Duration::from_secs(30);
+///
+/// 30s was too tight for the *first* launch after the WebView2 cache is cleared:
+/// the workspace shell pulls in dozens of plugin `client.js` bundles through a
+/// cold cache, and the window was torn down while it was still compiling them —
+/// which then rolled the user back to the usage-mode picker they had just been
+/// taken out of. A genuinely dead surface costs nothing by waiting, so the
+/// deadline now covers a cold start rather than a warm one.
+const WINDOW_LOAD_TIMEOUT: Duration = Duration::from_secs(90);
 /// Electron's `viewMenu` zoom steps: 1.2× per press, clamped to Chromium's range.
 const ZOOM_STEP: f64 = 1.2;
 const ZOOM_MIN: f64 = 0.25;
@@ -84,6 +91,16 @@ pub struct EnterpriseSession {
     pub device_id: String,
     pub authority: Option<Authority>,
     pub auth_file: Option<PathBuf>,
+}
+
+/// One deferred runtime start, executed by the retry supervisor (see
+/// `runtime_retry_tx`). Every field is Send so the request can cross channels.
+#[derive(Clone)]
+pub(crate) struct RuntimeStartRequest {
+    home: PathBuf,
+    connection: DesktopConnection,
+    patches: Vec<PathBuf>,
+    existing_home: bool,
 }
 
 /// The carrier: one managed state object replacing the Electron main-process globals.
@@ -113,6 +130,21 @@ pub struct Carrier<R: Runtime> {
     pub next_window_id: AtomicU32,
     pub next_generation: AtomicU64,
     pub next_session_id: AtomicU64,
+    /// Consecutive runtime starts that have not reached readiness yet. Used to
+    /// auto-retry exactly once when the host exits before it reports ready —
+    /// the first click on a fresh installation can lose the race against
+    /// first-boot work (Defender scanning the just-extracted node.exe, a cold
+    /// pnpm store, first-run profile provisioning), and the second click always
+    /// worked. Reset to 0 as soon as a start reports ready.
+    pub runtime_start_attempts: AtomicUsize,
+    /// Deferred-start channel consumed by the retry supervisor spawned in
+    /// `setup`. The runtime-exit handler must not await `start_runtime` from
+    /// inside `start_runtime`'s own spawned task: that type-level cycle (the
+    /// task future requiring the enclosing future to be `Send`, and vice
+    /// versa) is unprovable for rustc. Routing the retry through a channel
+    /// breaks the cycle while keeping the same one-click-again semantics.
+    pub(crate) runtime_retry_tx:
+        Mutex<Option<tokio::sync::mpsc::UnboundedSender<RuntimeStartRequest>>>,
     /// Electron `viewMenu` zoom: a fresh webContents starts at 1.0.
     pub zoom: Mutex<f64>,
 }
@@ -334,6 +366,8 @@ impl<R: Runtime> Carrier<R> {
             next_window_id: AtomicU32::new(1),
             next_generation: AtomicU64::new(1),
             next_session_id: AtomicU64::new(1),
+            runtime_start_attempts: AtomicUsize::new(0),
+            runtime_retry_tx: Mutex::new(None),
             zoom: Mutex::new(1.0),
         }
     }
@@ -462,6 +496,12 @@ impl<R: Runtime> Carrier<R> {
         let window_icon = tauri::image::Image::from_bytes(include_bytes!("../../assets/app-icon.png")).ok();
         if carrier {
             builder = builder.initialization_script(carrier_init_script("carrier"));
+        }
+        // Hand the data workbench the live sidecar endpoint (port + token) before
+        // any page script runs, so its HTTP client needs no environment plumbing.
+        let datahub_script = crate::datahub_daemon::datahub_init_script();
+        if !datahub_script.is_empty() {
+            builder = builder.initialization_script(datahub_script);
         }
         // Electron assigns a per-partition session to enterprise windows.
         if let Some(partition) = crate::connection::connection_partition(&connection) {
@@ -864,8 +904,18 @@ impl<R: Runtime> Carrier<R> {
                     self.show_loading("正在更新工作区插件依赖")?;
                 }
             }
-            self.official_command(home, &["plugin", "--profile", PROFILE_NAME, "install"])
-                .await?;
+            // First-time installs materialize the full dependency tree (and fetch
+            // the pinned community catalogs); a transient registry or store failure
+            // here used to surface as a startup error that vanished on the second
+            // click. The install is idempotent, so retry once before giving up.
+            if let Err(first_error) = self
+                .official_command(home, &["plugin", "--profile", PROFILE_NAME, "install"])
+                .await
+            {
+                eprintln!("[quantdsh] profile plugin install failed once, retrying: {first_error}");
+                self.official_command(home, &["plugin", "--profile", PROFILE_NAME, "install"])
+                    .await?;
+            }
             mark_profile_updated(source, &materialized.profile)?;
             let message = {
                 let enterprise = self.enterprise.lock().unwrap_or_else(|error| error.into_inner());
@@ -930,6 +980,7 @@ impl<R: Runtime> Carrier<R> {
         patches: &[PathBuf],
         existing_home: bool,
     ) -> Result<(), String> {
+        self.runtime_start_attempts.fetch_add(1, Ordering::SeqCst);
         self.remember_command_space(Some(home));
         if self.quit_requested.load(Ordering::SeqCst) {
             return Err("启动已取消".to_string());
@@ -1079,6 +1130,7 @@ impl<R: Runtime> Carrier<R> {
                                 let target = found.as_str().to_string();
                                 ready.store(true, Ordering::SeqCst);
                                 this.runtime_starting.store(false, Ordering::SeqCst);
+                                this.runtime_start_attempts.store(0, Ordering::SeqCst);
                                 this.open_window_dispatch(target, connection.clone(), false);
                             }
                         }
@@ -1134,6 +1186,11 @@ impl<R: Runtime> Carrier<R> {
             let diagnostic_output = diagnostic_output.clone();
             let exit_cancel = CancellationToken::new();
             let timeout_cancel = exit_cancel.clone();
+            // Captured for the one-shot first-boot retry below.
+            let retry_home = home.to_path_buf();
+            let retry_connection = connection.clone();
+            let retry_patches: Vec<PathBuf> = patches.to_vec();
+            let retry_existing_home = existing_home;
             tokio::spawn(async move {
                 let code = child.wait().await.ok().and_then(|status| status.code());
                 // trackOwnedProcess() records `exitedAt` on the child's exit event;
@@ -1148,6 +1205,49 @@ impl<R: Runtime> Carrier<R> {
                         if this.current_generation() == Some(generation) {
                             *this.runtime.lock().unwrap_or_else(|error| error.into_inner()) = None;
                             this.runtime_starting.store(false, Ordering::SeqCst);
+                        }
+                        // One-shot retry: a fresh installation's first host boot can
+                        // exit before readiness while Windows finishes scanning the
+                        // just-extracted node.exe or the cold pnpm store materializes.
+                        // The user used to see "官方 DSH …未能完成启动", and clicking
+                        // 个人使用 again always worked — do that click for them, once.
+                        if !exit_ready.load(Ordering::SeqCst)
+                            && !this.quitting.load(Ordering::SeqCst)
+                            && !this.switching.load(Ordering::SeqCst)
+                            && this.current_generation() == Some(generation)
+                            && this.runtime_start_attempts.load(Ordering::SeqCst) < 2
+                        {
+                            let detail = this.runtime_failure_detail(
+                                false,
+                                &port,
+                                &diagnostic_output
+                                    .lock()
+                                    .unwrap_or_else(|error| error.into_inner()),
+                                code,
+                                false,
+                            );
+                            eprintln!("[quantdsh] first boot did not reach readiness; retrying once\n{detail}");
+                            // The retry goes through the supervisor channel: awaiting
+                            // `start_runtime` from inside its own spawned task would
+                            // create an unprovable Send cycle (see `runtime_retry_tx`).
+                            let request = RuntimeStartRequest {
+                                home: retry_home,
+                                connection: retry_connection,
+                                patches: retry_patches,
+                                existing_home: retry_existing_home,
+                            };
+                            let sent = this
+                                .runtime_retry_tx
+                                .lock()
+                                .unwrap_or_else(|error| error.into_inner())
+                                .as_ref()
+                                .and_then(|tx| tx.send(request).ok())
+                                .is_some();
+                            if !sent {
+                                eprintln!("[quantdsh] retry supervisor unavailable; returning to entry");
+                                this.return_to_entry_spawned();
+                            }
+                            return;
                         }
                         if !this.quitting.load(Ordering::SeqCst)
                             && !this.switching.load(Ordering::SeqCst)
@@ -2007,44 +2107,56 @@ impl<R: Runtime> Carrier<R> {
             }
         }
         self.install_connection_menu();
-        // Debug-only shortcut for unattended smoke tests: the shipped app always
-        // opens the usage-mode picker, which no script can operate (the entry page
-        // is served by the `quantdsh://` protocol, not by the OS shell). Setting
-        // `QUANTDSH_DESKTOP_DEBUG_AUTOSTART=personal` walks the same personal path
-        // `quantdsh://personal` would, so a debug build can be exercised end to end.
-        // `debug_assertions` keeps this out of release builds entirely.
-        #[cfg(debug_assertions)]
-        if self.paths.runtime_problems.is_empty()
-            && std::env::var("QUANTDSH_DESKTOP_DEBUG_AUTOSTART").as_deref() == Ok("personal")
-        {
-            eprintln!("[quantdsh] debug autostart: entering the personal workspace");
-            self.show_connection_entry();
-            let this = Arc::clone(self);
-            tauri::async_runtime::spawn(async move {
-                let home = this.paths.dsh_home.clone();
-                let _ = this.show_loading("正在启动个人工作区");
-                match this.prepare_profile(&home).await {
-                    Ok((_profile, existing_home)) => {
-                        this.entry_surface.store(false, Ordering::SeqCst);
-                        if let Err(error) = this
-                            .start_runtime(&home, DesktopConnection::Personal, &[], existing_home)
-                            .await
-                        {
-                            this.error_box("无法启动个人工作区", &error);
-                        }
-                    }
-                    Err(error) => this.error_box("无法准备工作区", &error),
-                }
-            });
-            return;
-        }
+        // The launch flow goes straight into the personal workspace. The
+        // usage-mode picker used to be the first screen on every start, which is
+        // pure friction on an install that only ever has one workspace; it stays
+        // reachable from 工作区 → 切换使用方式.
+        //
         // Fail closed exactly like the Electron carrier — no host process is ever
         // started against a partial tree — but with a surface that can repair it.
         if self.paths.runtime_problems.is_empty() {
-            self.show_connection_entry();
+            self.autostart_personal_workspace();
         } else {
             self.show_runtime_guide();
         }
+    }
+
+    /// Boot into the personal workspace without showing the usage-mode picker.
+    ///
+    /// The first window is created *on* the loading surface instead of being
+    /// created on the picker and navigated afterwards — `show_loading` only
+    /// navigates an existing window, so the old order left the picker visible
+    /// until the runtime reported ready, i.e. the exact flash we want gone.
+    /// Everything after the window exists is the same path `quantdsh://personal`
+    /// takes, so there is only one personal-start implementation.
+    fn autostart_personal_workspace(self: &Arc<Self>) {
+        self.open_window_dispatch(
+            loading_url("正在启动个人工作区"),
+            DesktopConnection::Personal,
+            true,
+        );
+        let this = Arc::clone(self);
+        tauri::async_runtime::spawn(async move {
+            let home = this.paths.dsh_home.clone();
+            match this.prepare_profile(&home).await {
+                Ok((_profile, existing_home)) => {
+                    this.entry_surface.store(false, Ordering::SeqCst);
+                    if let Err(error) = this
+                        .start_runtime(&home, DesktopConnection::Personal, &[], existing_home)
+                        .await
+                    {
+                        this.error_box("无法启动个人工作区", &error);
+                        // Give the user a way out instead of parking them on a
+                        // loading screen that will never finish.
+                        this.show_connection_entry();
+                    }
+                }
+                Err(error) => {
+                    this.error_box("无法准备工作区", &error);
+                    this.show_connection_entry();
+                }
+            }
+        });
     }
 }
 
@@ -2254,9 +2366,45 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Regular);
             let carrier = build_carrier(app.handle())?;
             app.manage(carrier.clone());
+            // Start the market-data sidecar so the data workbench has a backend to
+            // query. It writes a port file; `datahub_daemon` waits for it and the
+            // endpoint is then injected into every webview below.
+            crate::datahub_daemon::spawn_datahub();
             let started = carrier.clone();
             tauri::async_runtime::spawn(async move {
                 started.start().await;
+            });
+            // Retry supervisor: executes deferred runtime starts (the one-shot
+            // first-boot auto-retry). It lives outside `start_runtime` so the
+            // exit handler can hand work back without creating a Send cycle.
+            let (retry_tx, mut retry_rx) =
+                tokio::sync::mpsc::unbounded_channel::<RuntimeStartRequest>();
+            *carrier
+                .runtime_retry_tx
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = Some(retry_tx);
+            let supervisor = carrier.clone();
+            tauri::async_runtime::spawn(async move {
+                while let Some(request) = retry_rx.recv().await {
+                    if supervisor.quitting.load(Ordering::SeqCst) {
+                        break;
+                    }
+                    if let Err(error) = supervisor.show_loading("正在重新启动本机运行时") {
+                        eprintln!("[quantdsh] retry loading surface unavailable: {error}");
+                    }
+                    if let Err(error) = supervisor
+                        .start_runtime(
+                            &request.home,
+                            request.connection,
+                            &request.patches,
+                            request.existing_home,
+                        )
+                        .await
+                    {
+                        supervisor.error_box("无法进入", &error);
+                        supervisor.show_connection_entry();
+                    }
+                }
             });
             Ok(())
         })
@@ -2307,6 +2455,8 @@ pub fn run() {
                 if let Some(carrier) = app.try_state::<Arc<Carrier<tauri::Wry>>>() {
                     carrier.inner().stop_runtime();
                 }
+                // Tear down the market-data sidecar tree (kill-on-close Job Object on Windows).
+                crate::datahub_daemon::stop_datahub();
             }
             #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { has_visible_windows: false } => {
