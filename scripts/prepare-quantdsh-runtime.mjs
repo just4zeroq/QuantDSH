@@ -141,11 +141,19 @@ if (!prepared) {
     writeFileSync(join(profile, 'cordis.patch.yml'), composeProfilePatches(patches))
     verifyInstalled()
     writeFileSync(markerPath, marker + '\n')
-    rmSync(backup, { recursive: true, force: true })
   } catch (error) {
     rmSync(output, { recursive: true, force: true })
     if (existsSync(backup)) renameSync(backup, output)
     throw error
+  }
+  // Leftover cleanup must never be able to undo a good install. On Windows a
+  // locked file (antivirus, or a trash/recycle policy that refuses to move a
+  // tree this large) makes `rmSync` throw, and because this used to run inside
+  // the try block above, that threw the freshly installed runtime away and put
+  // the stale one back — so the next carrier build silently re-shipped the old
+  // plugin bundles. Keep the install, report the leftover instead.
+  try { rmSync(backup, { recursive: true, force: true }) } catch (error) {
+    console.warn(`Could not remove the previous runtime backup at ${backup}: ${error.message}`)
   }
 }
 cpSync(join(profile, 'package.json'), join(output, 'profile-package.json'))
