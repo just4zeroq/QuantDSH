@@ -1,0 +1,79 @@
+{
+  "name": "quantdsh-plugin-market",
+  "version": "3.0.0-alpha.57",
+  "private": true,
+  "type": "module",
+  "description": "QuantDSH market (quote) workbench: K-line charting powered by LuxAlgo Vela, reading OHLCV bars from the quantdsh-datahub daemon.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.browser.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "quantdsh-plugin-workbenches"
+      ],
+      "external": [
+        "quantdsh-plugin-workbenches/client"
+      ]
+    }
+  },
+  "quantdsh": {
+    "workbench": {
+      "id": "quantdsh.market",
+      "title": "行情",
+      "description": "K 线行情看盘（Vela 图表，数据源为 quantdsh-datahub）",
+      "protocolVersion": "1.0",
+      "layout": "full-page",
+      "hostCompatibility": {
+        "sdk": "^1.0.0",
+        "harness": "0.2.1-rc.2"
+      },
+      "capabilities": []
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node ../../../apps/web/scripts/build-market.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@luxalgo/vela": "0.9.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-storage-domain": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.1-rc.2",
+    "quantdsh-contracts": "workspace:*",
+    "quantdsh-plugin-workbenches": "3.0.0-alpha.49"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-storage-domain": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.1-rc.2",
+    "@types/node": "22.19.0",
+    "@types/react": "19.2.14",
+    "react": "19.2.4",
+    "quantdsh-contracts": "workspace:*",
+    "quantdsh-plugin-workbenches": "workspace:*"
+  }
+}

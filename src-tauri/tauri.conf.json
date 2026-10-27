@@ -39,7 +39,7 @@
       "../build/quantdsh-runtime": "quantdsh-runtime",
       "../build/deployment/quantdsh-config.json": "quantdsh-config.json"
     },
-    "externalBin": [],
+    "externalBin": ["quantdsh-datahub"],
     "macOS": {
       "entitlements": "entitlements.mac.plist",
       "frameworks": [],

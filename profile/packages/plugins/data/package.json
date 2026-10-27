@@ -1,0 +1,74 @@
+{
+  "name": "quantdsh-plugin-data",
+  "version": "3.0.0-alpha.57",
+  "private": true,
+  "type": "module",
+  "description": "QuantDSH data workbench: dataset catalog, coverage and sync. Shared domain layer for the data and market pages.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./domain": {
+      "types": "./dist/domain/index.d.ts",
+      "default": "./dist/domain.js"
+    },
+    "./package.json": "./package.json",
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.browser.js"
+    }
+  },
+  "files": [
+    "dist",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "quantdsh": {
+    "workbench": {
+      "id": "quantdsh.data",
+      "title": "数据",
+      "description": "数据集目录、覆盖率与同步任务",
+      "protocolVersion": "1.0",
+      "layout": "full-page",
+      "hostCompatibility": {
+        "sdk": "^1.0.0",
+        "harness": "0.2.1-rc.2"
+      },
+      "capabilities": []
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node ../../../apps/web/scripts/build-data.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-storage-domain": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.1-rc.2",
+    "quantdsh-contracts": "workspace:*",
+    "quantdsh-plugin-workbenches": "3.0.0-alpha.49"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-storage-domain": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.1-rc.2",
+    "@types/node": "22.19.0",
+    "@types/react": "19.2.14",
+    "react": "19.2.4",
+    "quantdsh-contracts": "workspace:*",
+    "quantdsh-plugin-workbenches": "workspace:*"
+  }
+}

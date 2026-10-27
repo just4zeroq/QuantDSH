@@ -28,6 +28,7 @@
 
 mod app;
 mod browser_worker;
+mod datahub_daemon;
 mod command_management;
 mod connection;
 mod deployment_config;

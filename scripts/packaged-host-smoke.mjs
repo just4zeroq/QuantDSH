@@ -8,11 +8,21 @@ import { PRODUCT_PACKAGES } from './quantdsh-package-boundary.mjs'
 // one side alone produces a silent, test-green failure.
 export const PRODUCT_SERVICES = Object.freeze({
   'quantdsh-plugin-connectors': 'quantdshConnectors',
+  'quantdsh-plugin-data': 'quantdshDataHub',
   'quantdsh-plugin-experts': 'quantdshExperts',
   'quantdsh-plugin-library': 'quantdshLibrary',
+  'quantdsh-plugin-market': 'quantdshMarketDataHub',
   'quantdsh-plugin-projects': 'quantdshProjects',
   'quantdsh-plugin-skills': 'quantdshSkills',
   'quantdsh-plugin-workbenches': 'quantdshWorkbenchRegistration',
+})
+
+// A product package's fiber runs under the plugin's exported `name`, which may
+// differ from the npm package name (workbenches predates the rename convention).
+const PRODUCT_RUNTIME_NAMES = Object.freeze({
+  'quantdsh-plugin-workbenches': 'quantdsh-workbenches',
+  'quantdsh-plugin-data': 'quantdsh-data',
+  'quantdsh-plugin-market': 'quantdsh-market',
 })
 const REQUIRED_PLATFORM_SERVICES = ['profileContext', 'loader', 'storageDomain', 'connection', 'quantdshIdentity', 'quantdshAccess', 'sessionController', 'workspaceController', 'tools']
 
@@ -26,7 +36,7 @@ export function inspectStartedHost(ctx, products, platformServices) {
   for (const [name, service] of Object.entries(products)) {
     if (!selected.includes(name)) throw new Error('Packaged Host did not start selected product: ' + name)
     if (!ctx.get(service)) throw new Error('Packaged Host service is unavailable: ' + service)
-    const runtimeName = name === 'quantdsh-plugin-workbenches' ? 'quantdsh-workbenches' : name
+    const runtimeName = PRODUCT_RUNTIME_NAMES[name] ?? name
     const fibers = runtimes.filter(runtime => runtime.name === runtimeName).flatMap(runtime => [...runtime.fibers])
     if (!fibers.length || fibers.some(fiber => fiber.state !== 2)) throw new Error('Packaged Host product initialization is incomplete: ' + name)
   }
@@ -39,7 +49,9 @@ export function inspectStartedHost(ctx, products, platformServices) {
 export function prepareHostSmokeProbe(home) {
   if (JSON.stringify(Object.keys(PRODUCT_SERVICES).sort()) !== JSON.stringify([...PRODUCT_PACKAGES].sort())) throw new Error('Host smoke product service map differs from the release inventory')
   const probe = join(home, '.quantdsh-host-smoke-probe.mjs')
-  const source = `const inspect = ${inspectStartedHost.toString()};\nexport const name='quantdsh-packaged-host-smoke';\nexport const inject=${JSON.stringify(['appReady', ...REQUIRED_PLATFORM_SERVICES, ...Object.values(PRODUCT_SERVICES)])};\nexport function apply(ctx){return ctx.effect(()=>ctx.get('appReady').onReady(()=>{const receipt=inspect(ctx,${JSON.stringify(PRODUCT_SERVICES)},${JSON.stringify(REQUIRED_PLATFORM_SERVICES)});process.send?.(receipt);}),'packaged-host-readiness');}\n`
+  // inspectStartedHost is serialized by source, so every module-scope binding it
+  // references must be re-declared inside the probe file.
+  const source = `const inspect = ${inspectStartedHost.toString()};\nconst PRODUCT_RUNTIME_NAMES = ${JSON.stringify(PRODUCT_RUNTIME_NAMES)};\nexport const name='quantdsh-packaged-host-smoke';\nexport const inject=${JSON.stringify(['appReady', ...REQUIRED_PLATFORM_SERVICES, ...Object.values(PRODUCT_SERVICES)])};\nexport function apply(ctx){return ctx.effect(()=>ctx.get('appReady').onReady(()=>{const receipt=inspect(ctx,${JSON.stringify(PRODUCT_SERVICES)},${JSON.stringify(REQUIRED_PLATFORM_SERVICES)});process.send?.(receipt);}),'packaged-host-readiness');}\n`
   writeFileSync(probe, source, { mode: 0o600 })
   const patch = join(home, '.headless-host-smoke.patch.yml')
   writeFileSync(patch, JSON.stringify([{ id: 'webserver', config: { host: '127.0.0.1', port: 0 } }, { insert: [{ id: 'quantdsh-packaged-host-smoke', name: probe }] }]), { mode: 0o600 })

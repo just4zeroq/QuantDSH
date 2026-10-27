@@ -2,8 +2,10 @@
 // Only product packages are selected or exposed by the default personal Profile.
 export const PRODUCT_PACKAGES = Object.freeze([
   'quantdsh-plugin-connectors',
+  'quantdsh-plugin-data',
   'quantdsh-plugin-experts',
   'quantdsh-plugin-library',
+  'quantdsh-plugin-market',
   'quantdsh-plugin-projects',
   'quantdsh-plugin-skills',
   'quantdsh-plugin-workbenches',
@@ -36,6 +38,8 @@ export const RELEASE_PACKAGES = Object.freeze([
   'quantdsh-bundle',
   'quantdsh-plugin-projects',
   'quantdsh-plugin-workbenches',
+  'quantdsh-plugin-data',
+  'quantdsh-plugin-market',
 ])
 
 export const PACKAGE_DIRECTORIES = Object.freeze({
@@ -52,6 +56,8 @@ export const PACKAGE_DIRECTORIES = Object.freeze({
   'quantdsh-bundle': '../../packages/bundle',
   'quantdsh-plugin-projects': '../../packages/plugins/projects',
   'quantdsh-plugin-workbenches': '../../packages/plugins/workbenches',
+  'quantdsh-plugin-data': '../../packages/plugins/data',
+  'quantdsh-plugin-market': '../../packages/plugins/market',
   'quantdsh-provider-identity-enterprise': '../../packages/providers/identity-enterprise',
   'quantdsh-plugin-enterprise-collaboration': '../../packages/plugins/enterprise-collaboration',
 })

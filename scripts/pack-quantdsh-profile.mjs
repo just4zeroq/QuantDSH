@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { join, relative, resolve, sep } from 'node:path'
+import { join, relative, resolve, sep, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DSH_VERSION } from './runtime-version.mjs'
 import { PRODUCT_PACKAGES, RELEASE_PACKAGES, PACKAGE_DIRECTORIES } from './quantdsh-package-boundary.mjs'
@@ -27,6 +27,28 @@ const ownedPath = suffix => (profileRoot === '.' ? suffix : `${profileRoot}/${su
 const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: source, encoding: 'utf8' }).trim()
 const sourceDirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=all', '--', sourcePath, ownedPath('packages'), ownedPath('profiles'), ownedPath('upstream.json')], { cwd: sourceRoot, encoding: 'utf8' }).trim().length > 0
 const pnpm = join(source, 'node_modules/pnpm/bin/pnpm.cjs')
+/** Version of `name` as installed next to `directory`. Prefers the package's
+ * own export of `./package.json`; falls back to walking up from the resolved
+ * entry, because several published packages (e.g. @luxalgo/vela) do not export
+ * their package.json. */
+function resolveInstalledVersion(directory, name) {
+  const requirer = createRequire(join(directory, 'package.json'))
+  let entry
+  try {
+    entry = requirer.resolve(name + '/package.json')
+  } catch {
+    entry = requirer.resolve(name)
+  }
+  let dir = dirname(entry)
+  for (let hop = 0; hop < 8; hop += 1) {
+    const candidate = join(dir, 'package.json')
+    if (existsSync(candidate)) return JSON.parse(readFileSync(candidate, 'utf8')).version
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  throw new Error(`Cannot determine the installed version of ${name} from ${directory}`)
+}
 const packages = []
 const requiredPeers = {}
 mkdirSync(output, { recursive: true })
@@ -41,7 +63,7 @@ for (const name of RELEASE_PACKAGES) {
       if (!RELEASE_PACKAGES.includes(peer)) throw new Error('Missing owned runtime dependency: ' + name + ' requires ' + peer)
       continue
     }
-    const version = project.pnpm?.overrides?.[peer] ?? JSON.parse(readFileSync(createRequire(join(directory, 'package.json')).resolve(peer + '/package.json'), 'utf8')).version
+    const version = project.pnpm?.overrides?.[peer] ?? resolveInstalledVersion(directory, peer)
     if (requiredPeers[peer] && requiredPeers[peer] !== version) throw new Error('Conflicting runtime peer: ' + peer)
     requiredPeers[peer] = version
   }
