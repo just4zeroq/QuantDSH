@@ -124,7 +124,26 @@ npm run release:mac-arm    # macOS Apple Silicon
 npm run release:mac-x64    # macOS Intel
 ```
 
-`--source <dir>` 或 `QUANTDSH_SOURCE` 可覆盖 Profile 源位置（默认值见上一节）。
+`--source <dir>` 或 `QUANTDSH_SOURCE` 可覆盖 Profile 源位置。三个 `release:*` 脚本已把它钉在
+仓内的 `profile/apps/web`；只有直接写 `node scripts/release.mjs` 时才要自己传 —— 不传会退回
+`../quantdsh/apps/web`，在只克隆本仓库的机器上直接抛 `Built QuantDSH Web source not found`。
+
+从零（删掉 `src-tauri/target`、`build/quantdsh-runtime`、`build/packages`）到安装包的实测
+（Windows x64，Rust 1.95，release profile 见 `Cargo.toml` 的 `lto = true` / `codegen-units = 1`
+/ `strip = true`）：
+
+| 阶段 | 耗时 |
+|---|---|
+| 第 1–7 步：打包 13 个自有包 → 合成 905 MB runtime → 挂 Node/pnpm/Python → 离线包 | 约 14 分钟，其中第 7 步的逐文件 sha256 + `tar.gz` 独占 12 分钟 |
+| 第 8 步 `cargo` 编译 | 12 分 24 秒 |
+| 第 8 步 NSIS 压缩（LZMA） | 约 3 分钟 |
+| 第 9 步校验（真装一遍、验完静默卸载） | 约 1 分钟 |
+| 合计 | **1 小时 1 分** |
+
+产物账：安装包 `QuantDSH-3.0.0-alpha.3-x64-Setup.exe` **189,128,085 B / 180.4 MiB**，
+`QuantDSH.exe` 本体 **15.7 MB**（strip + LTO），`target/release` 2.73 GB / 46003 文件，
+离线修复包 `runtime-3.0.0-alpha.3-win-x64.tar.gz` 276 MB。校验会真装真卸，结束后
+HKCU 卸载项、开始菜单快捷方式、`%TEMP%\quantdsh-verify-*` 都不留痕。
 
 ### 4.1 本地 debug 构建（只做冒烟测试）
 
@@ -148,14 +167,18 @@ npx tauri build --debug --no-bundle     # 只出 exe，不产安装包
 实测：`target` 共 **2.56 GB**，其中 `deps` 1.31 GB、复制的 runtime 0.88 GB、`build` 0.31 GB，
 主 crate 的 `QuantDSH.pdb` 只有 **36.5 MB**，exe 25.5 MB，`incremental` 为空。全量构建约 6 分钟。
 
-启动后默认停在入口页，需要手动点「个人使用」。无人值守测试用 debug-only 开关
-（`debug_assertions` 门控，发布版完全不读）：
+启动后**直接进入个人工作区**，第一屏就是「正在启动个人工作区」加载页，不再经过入口页。
+需要切换企业/重新选使用方式时走菜单「工作区 → 切换使用方式／退出企业」。
+
+无人值守测试只要隔离数据目录即可（不再需要任何自动启动开关）：
 
 ```powershell
 $env:QUANTDSH_DESKTOP_USER_DATA='D:\tmp\qdsmoke'    # 隔离数据目录，不碰真实配置
-$env:QUANTDSH_DESKTOP_DEBUG_AUTOSTART='personal'    # 走与 quantdsh://personal 相同的路径
 .\src-tauri\target\debug\QuantDSH.exe
 ```
+
+> 旧版本用 `QUANTDSH_DESKTOP_DEBUG_AUTOSTART='personal'` 跳过入口页；该开关已随入口页一起移除，
+> 现在设置它不会有任何效果（默认行为就是自动进入个人工作区）。
 
 首次进入要装 Profile 依赖，**约 60–120 秒才监听 `127.0.0.1:3080`**；这段时间 host 进程已在跑但端口没开，
 容易被误判成启动失败。冒烟判据是：窗口标题 `QuantDSH`、host 为 carrier 的子进程、3080 返回 401（正常鉴权）。
@@ -366,8 +389,12 @@ dsh-tauri/
 - **点「个人使用」报 `ERR_INVALID_FILE_URL_PATH: File URL path must be absolute`**：
   这是 Windows 上的路径前缀问题，已在源码层修掉（`simplify_verbatim` + `path_to_file_url`），
   两层根因见第九节。
-- **点了「个人使用」窗口不出现（或一直空白、30 秒后被关掉）**：不要用
+- **点了「个人使用」窗口不出现（或一直空白、90 秒后被关掉）**：不要用
   `visible(false)` 建窗口再等加载完显示（原因见第九节）。本实现在
   `WebviewWindowBuilder::build()` 之后立刻 `show()`（背景色已是 `#111113`，不会白闪），
   「加载完成」只用来销毁上一个窗口。验证时看 stderr 的
   `[quantdsh] window <label> ready at <url>`——它只在首帧打印一次。
+- **数据工坊页面退回旧的五页 / 报 `unauthorized`**：runtime 在 `build/quantdsh-runtime`
+  与 `src-tauri/target/debug/quantdsh-runtime` 各有一份，`cargo build` 会把前者合拷到后者，
+  所以**只更新 target 会被下一次构建还原**；插件又只在宿主启动时加载，宿主不重启就永远发旧代码。
+  完整根因与排查顺序见 [`QUANTDSH_DATA_WORKBENCH_NOTES.md`](./QUANTDSH_DATA_WORKBENCH_NOTES.md)。
