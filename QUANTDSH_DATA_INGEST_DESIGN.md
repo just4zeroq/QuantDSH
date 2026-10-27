@@ -1114,6 +1114,47 @@ openpyxl / XlsxWriter），那是桌面端给 Office 类技能用的**官方运�
 **两个 Python 各自服务的对象互不重叠**，所以「重复」只在磁盘上，不在运行时：
 `primary-runtime/dependencies/python` 跑 Office 脚本，`runtime/python` 跑行情服务，两者不互相 import。
 
+### 9.2 改了插件之后，只重编 dist 是起不来的（`installed-file-mismatch`）
+
+这一版改完数据工坊、把 K 线迁进 market 之后，直接 `cargo build` 启动，界面正常但**行情页整个消失**，
+`datahub.log` 之外的那一侧（carrier 的 stderr）只有一行：
+
+```
+dsh: warning: 1 entry did not activate
+quantdsh-market (quantdsh-plugin-market): Error: workbench/installed-file-mismatch
+    at verifyInstalledWorkbenchArtifact (quantdsh-plugin-workbenches/dist/index.js:816)
+    at verifyAnchorInstallation (…:1585)
+```
+
+原因不在插件代码，在**打包链**：`quantdsh-plugin-workbenches` 的工作台注册会走
+`verifyInstalledWorkbenchArtifact()`（`packages/plugins/workbenches/src/runtime/installed-artifact.ts`），
+它拿 `package-cache/<name>-<version>-<sha>.tgz` 这个**发布归档**去和 `node_modules` 里已安装的文件做
+size + sha256 + inode + mtime + realpath 的逐项比对。归档是发布时打的，本地重新编译 dist 之后两边对不上，
+校验就按设计拒绝激活——这条链本来是防篡改的，本地开发等于「自篡改」。
+
+实测数字：`dist/client.browser.js` 打包前 data 89,603 B / market 2,065,643 B，重编后 105,473 B / 2,090,379 B，
+与归档全部不一致。
+
+**正确顺序**（三步缺一不可）：
+
+```powershell
+node scripts/pack-quantdsh-profile.mjs ./profile/apps/web build/quantdsh-profile-release-<ts>
+$env:QUANTDSH_RELEASE_DIRECTORY = 'build\quantdsh-profile-release-<ts>'
+node scripts/prepare-quantdsh-runtime.mjs      # 重建 profile + pnpm install（约 1–2 分钟）
+cargo build --bin QuantDSH                     # 资源拷进 target/debug
+```
+
+两个容易踩的点：
+
+- `pack-quantdsh-profile.mjs` 拒绝复用已存在的输出目录（归档被当作不可变候选），所以每次都要新目录，
+  `build/quantdsh-profile-release-*` 越攒越多是正常的。
+- `prepare-quantdsh-runtime.mjs` 会先把 `build/quantdsh-runtime` 改名成 `.before-ed01-<ts>` 备份再装。
+  备份里一万多个文件，沙箱/清理工具的批量删除阈值会拦它，于是脚本**已经装完并打印成功**之后仍以
+  非零码退出——看到 `Prepared official DSH …` 就算成功，别被退出码骗了。
+
+同理，`profile/packages/**/dist/` 在 `.gitignore` 里：任何「改完前端直接启动」都会走到这条死路，
+而报错只说「安装文件不一致」，完全不指向构建流程。
+
 ---
 
 ## 10. 风险与未决
