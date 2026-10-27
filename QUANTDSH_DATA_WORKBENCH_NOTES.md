@@ -75,7 +75,55 @@ prepare 的回滚触发点。校验：两棵树 `data/dist/client.browser.js` = 
 **第二层原因：`immutable` 缓存**。客户端入口 URL 形如
 `plugins/??<pkg>/client.js&rev=<12 位>`，响应头是
 `cache-control: public, max-age=31536000, immutable`。只要 `rev` 不变，浏览器不会重取。
-若确认磁盘与宿主都已是新版本，清掉 WebView 的 HTTP 缓存即可：
+所以真正要回答的是「`rev` 会随插件内容变吗」——会，见下。
+
+### `rev` 的计算方式（已确认，`@deepseek-ai/dsh-client-modules/lib/index.js`）
+
+```js
+function artifactRevision(baseline) {
+  return framedHash("plugin-artifact", [String(baseline.mtimeMs), String(baseline.ctimeMs), String(baseline.size)])
+}
+function comboRevision(resources) {
+  return framedHash("combo", resources.flatMap(r => [r.id, r.rev]))
+}
+// framedHash(domain, parts) = sha1(domain + "\0" + 逐段 "<字节长>:<内容>") 取前 12 位十六进制
+```
+
+- **单包 rev** = `sha1("plugin-artifact\0" + 各段)`，前 12 位
+- **batch rev**（页面一次加载的那 6 MB）= 对整批的 `(id, rev)` 逐对再 sha1，前 12 位
+- 关键结论：**rev 绑定的是文件元数据（mtime / ctime / size），不是内容哈希**
+
+**实测对照**（本机 runtime，2026-10-27）：
+
+| 检查项 | 结果 |
+|---|---|
+| 本地按上式复算 `quantdsh-plugin-data` | `3fb3b746c120` |
+| 宿主下发的 entry rev | `3fb3b746c120` ✅ 一致 |
+| 本地复算 batch rev（24 entry，含 data） | `c7612b5fbe2e` |
+| 宿主下发的 batch rev | `c7612b5fbe2e` ✅ 一致 |
+| 用 `rev=000000000000` 请求同一 combo | `404`（不会静默发旧字节） |
+
+敏感性实验（在临时副本上做，不碰安装文件）：
+
+| 改动方式 | rev 是否变 |
+|---|---|
+| 原地覆写，保持 size 与 mtime | 变（`utimes` 只能还原到毫秒，`mtimeMs` 带亚毫秒位） |
+| 删除后重写（同 size、还原 mtime） | 变（Windows 上 `ctimeMs` 是**创建时间**，重建必变） |
+| 只 touch mtime | 变 |
+
+因此**不需要把 rev 绑到内容哈希上**：正常安装流程下它一定会变。补充一个细节——`data` 包的
+`mtimeMs = 499162500000`（1985-10-26），`npm pack` 会把归档内 mtime 归一化成固定值，所以 rev
+实际主要由 **ctime + size** 决定，而 ctime 每次解包都是新的。
+
+唯一会失真的情形：写进**同一个目录项**、`mtime` 精确到亚毫秒都相同、`size` 也完全相同——
+常规工具做不到（`utimes` 只到毫秒）。要绝对安全，插件更新一律「先挪走旧目录，再整目录解包」，
+也就是第六节的做法。
+
+**最后一层，也是最会咬人的**：宿主的 rev 是在**启动时**采样、固定在 `__DSH_BOOT__` 图里的；
+页面刷新只是照抄这张图。文件换了、进程没换 → rev 不变 → 浏览器继续吃 `immutable` 的老字节。
+这就是复盘 B 的完整机制，「必须重启应用」是硬约束而不是缓存 bug。
+
+若已确认磁盘与宿主都是新版本、页面仍是旧的，才轮到清 WebView 的 HTTP 缓存：
 
 ```powershell
 # 关掉应用后执行；不要删 Local Storage（那会丢 UI 状态）
@@ -96,6 +144,8 @@ foreach ($n in 'Cache','Code Cache','GPUCache','DawnGraphiteCache','DawnWebGPUCa
    方式起一个临时 home 的宿主，拿 `?token=` 换 cookie，解析页面里的
    `globalThis["__DSH_BOOT__"]`，再逐个 fetch `graph.batches` 搜文案。这一步能一刀切分
    「服务端旧」还是「浏览器旧」。
+   - 想只判断「宿主是否已经采到新文件」，不必搜文案：按第四节公式从 `statSync` 复算
+     `quantdsh-plugin-*` 的 rev，和 `graph.entries[].rev` 比即可，一致就说明宿主采的就是当前磁盘。
 4. **进程**：`Get-CimInstance Win32_Process` 看是否还有旧宿主；插件只在启动时加载，宿主不重启
    就永远发旧代码。
 5. **时间线**：比对窗口启动时刻与文件写入时刻，差几分钟就是误判。
@@ -123,8 +173,10 @@ foreach ($n in 'Cache','Code Cache','GPUCache','DawnGraphiteCache','DawnWebGPUCa
 
 ## 七、已知风险 / 待办
 
-- **`rev` 的生成逻辑未确认**。如果它不随插件内容变化，那么每次更新插件都要清缓存，需要在构建侧
-  把它绑到内容哈希上。
+- **`rev` 只看文件元数据，不看内容**（机制已确认，见第四节）：正常安装必变，因此不需要内容哈希；
+  要守的规矩是**不要原地覆盖 `client.browser.js`**，一律整目录替换。
+- **宿主在启动时固定 rev 图**：插件更新后必须完全退出应用（含托盘）再启动。这不是缓存问题，
+  文档里所有「还是旧页面」的判断都要先过这一条。
 - **`prepare-quantdsh-runtime.mjs` 仍是全量重建**（约 900 MB、需联网），单包更新走手工同步更快，
   但容易漏改第 6 节里的某一处。
 - **真实行情同步在本机跑不通**：`api.binance.com` / `api1` / `fapi` 全部超时，只有
