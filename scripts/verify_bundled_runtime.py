@@ -43,12 +43,22 @@ def request(url: str, token: str | None = None, timeout: float = 10.0) -> tuple[
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--python", default=str(DEFAULT_PYTHON))
+    parser.add_argument(
+        "--backend",
+        default=str(BACKEND),
+        help="directory containing the `app` package (default: the source tree; "
+        "point it at a staged copy to prove the service needs nothing outside `app/`)",
+    )
     parser.add_argument("--keep", action="store_true", help="keep the temp data dir")
     args = parser.parse_args()
 
     python = Path(args.python)
+    backend = Path(args.backend)
     if not python.exists():
         print(f"FAIL  bundled interpreter missing: {python}")
+        return 1
+    if not (backend / "app" / "__main__.py").exists():
+        print(f"FAIL  no app package under {backend}")
         return 1
 
     data_dir = Path(tempfile.mkdtemp(prefix="quantdsh-bundled-"))
@@ -58,7 +68,7 @@ def main() -> int:
     started = time.monotonic()
     child = subprocess.Popen(
         [str(python), "-s", "-B", "-m", "app", "--data-dir", str(data_dir)],
-        cwd=str(BACKEND),
+        cwd=str(backend),
         stdin=subprocess.DEVNULL,
         stdout=log,
         stderr=log,
