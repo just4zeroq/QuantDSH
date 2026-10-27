@@ -374,6 +374,57 @@ export interface CsvImportBody {
   max_bad_ratio?: number;
 }
 
+// ────────────────────────────── 数据源（sources 表） ──────────────────────────────
+// 数据源是**数据库里的行**，不是代码里的常量：新增一家交易所 = POST 一行配置。
+// 线上字段是 camelCase（后端 `_source_wire` 负责转换），写入用的 body 是 snake_case
+// （直通 SQLite 列名）—— 这两个方向不对称是后端既有契约，不要"顺手统一"。
+
+export interface SourceWire {
+  id: string;
+  label: string | null;
+  provider: string | null;
+  venue: string | null;
+  kind: string | null;
+  baseUrls: string[];
+  enabled: boolean;
+  priority: number | null;
+  instTypes: string[];
+  intervals: string | null;
+  authKind: string | null;
+  authSecretRef: string | null;
+  config: Record<string, unknown>;
+  /** 来源是**探测结果的缓存**，不是声明；界面只信这一列。 */
+  capabilities: Record<string, unknown> | null;
+  capabilitiesAt: number | null;
+  status: string | null;
+  statusAt: number | null;
+  notes: string[];
+}
+
+export interface SourceProbeWire {
+  source: string;
+  status: string;
+  capabilities: Record<string, unknown>;
+  notes: string[];
+  detail: Record<string, unknown>;
+}
+
+export interface SourceUpsertBody {
+  id: string;
+  label?: string;
+  provider?: string;
+  venue?: string;
+  kind?: string;
+  base_urls?: string[];
+  enabled?: boolean;
+  priority?: number;
+  inst_types?: string[];
+  intervals?: string | null;
+  auth_kind?: string;
+  auth_secret_ref?: string | null;
+  config?: Record<string, unknown>;
+}
+
 export interface DatahubClient {
   health(): Promise<DaemonHealth>;
   /** `/health` 免鉴权，用来判定"守护进程活着但没有 token / token 不对"。 */
@@ -408,6 +459,12 @@ export interface DatahubClient {
   query(sql: string, maxRows?: number): Promise<QueryResultWire>;
   queryHistory(limit?: number): Promise<Record<string, unknown>[]>;
   sources(): Promise<string[]>;
+  /** 启用中的来源明细（`items`）与全部来源（`all`，含停用的）。 */
+  sourceList(): Promise<{ items: SourceWire[]; all: SourceWire[] }>;
+  upsertSource(body: SourceUpsertBody): Promise<SourceWire>;
+  deleteSource(id: string): Promise<boolean>;
+  /** 真探测一次，结果写回 `capabilities` / `status`；失败返回 502。 */
+  probeSource(id: string): Promise<SourceProbeWire>;
   markets(): Promise<string[]>;
   updateJob(id: string, patch: JobPatchWire): Promise<void>;
   deleteJob(id: string): Promise<void>;
@@ -486,6 +543,22 @@ export function createDatahubClient(endpoint: DatahubEndpoint): DatahubClient {
         query: { limit },
       }).then((r) => r.history),
     sources: () => request<{ sources: string[] }>(endpoint, '/api/sources').then((r) => r.sources),
+    sourceList: () =>
+      request<{ items: SourceWire[]; all: SourceWire[] }>(endpoint, '/api/sources').then((r) => ({
+        items: r.items ?? [],
+        all: r.all ?? r.items ?? [],
+      })),
+    upsertSource: (body) =>
+      request<SourceWire>(endpoint, '/api/sources', { method: 'POST', body }),
+    deleteSource: (id) =>
+      request<{ deleted: boolean }>(endpoint, `/api/sources/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }).then((r) => Boolean(r.deleted)),
+    probeSource: (id) =>
+      request<SourceProbeWire>(endpoint, `/api/sources/${encodeURIComponent(id)}/probe`, {
+        method: 'POST',
+        body: {},
+      }),
     markets: () => request<{ markets: string[] }>(endpoint, '/api/markets').then((r) => r.markets),
     updateJob: (id, patch) =>
       request(endpoint, `/api/jobs/${encodeURIComponent(id)}`, { method: 'POST', body: patch }),

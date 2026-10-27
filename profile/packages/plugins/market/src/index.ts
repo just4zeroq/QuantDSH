@@ -9,7 +9,7 @@ export const inject = ['quantdshWorkbenchRegistration'];
 export const descriptor: WorkbenchDescriptor = {
   id: 'quantdsh.market',
   title: '行情',
-  description: 'K 线行情看盘（Vela 图表，数据源为 quantdsh-datahub）',
+  description: 'K 线行情看盘（看盘/指标双视图，数据来自本地行情库）',
   protocolVersion: '1.0',
   layout: 'full-page',
   hostCompatibility: { sdk: '^1.0.0', harness: '0.2.1-rc.2' },
@@ -19,8 +19,8 @@ export const descriptor: WorkbenchDescriptor = {
 let clientRef: DatahubClient | null = null;
 
 /**
- * 数据服务客户端（懒解析端点）。行情页与数据工作台共用同一个 Rust 守护进程
- * （quantdsh-datahub）：守护进程是 DuckDB 的唯一写者，主进程/页面都是只读消费者。
+ * 数据服务客户端（懒解析端点）。行情页与数据工坊共用同一个本地行情服务：
+ * 服务是 DuckDB 的唯一写者，主进程/页面都是只读消费者。
  */
 export function getDatahub(endpoint: DatahubEndpoint = resolveHostEndpoint()): DatahubClient {
   if (!clientRef) clientRef = createDatahubClient(endpoint);

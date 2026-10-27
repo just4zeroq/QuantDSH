@@ -9,7 +9,7 @@ export const inject = ['quantdshWorkbenchClientRegistration', 'layout'];
 const descriptor: WorkbenchDescriptor = {
   id: 'quantdsh.market',
   title: '行情',
-  description: 'K 线行情看盘（Vela 图表，数据源为 quantdsh-datahub）',
+  description: 'K 线行情看盘（看盘/指标双视图，数据来自本地行情库）',
   protocolVersion: '1.0',
   layout: 'full-page',
   hostCompatibility: { sdk: '^1.0.0', harness: '0.2.1-rc.2' },

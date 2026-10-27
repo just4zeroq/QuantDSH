@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { boll, ema, macd, sma, type Series } from './indicators';
 
 /**
- * 自绘 Canvas K 线（主图 + 成交量 + MACD）。
+ * 自绘 Canvas K 线（主图 + 成交量 + MACD），带固定叠加指标。
  *
- * 为什么不复用 market 工作台的 Vela：数据工坊是普通插件页，再引入一份图表运行时
- * 会让这个包的依赖体积翻倍；而这里需要的只是「蜡烛 + 几条均线 + 量 + MACD」，
- * Canvas 直绘足够，且指标的取色、十字光标、tooltip 可以完全按产品口径控制。
+ * 这里是**指标视图**：Vela（`MarketPage`）负责缩放/平移/十字光标这类看盘交互，
+ * 而 MA/EMA/BOLL + 成交量 + MACD 这种「按产品口径固定叠加」的组合自己画更省事——
+ * 指标取色、tooltip 字段、涨跌配色都能直接对齐，不必依赖图表库的指标脚本方言。
+ * 两个视图共用同一份 `/api/bars` 数据，切换不重新取数。
  * 颜色走宿主 CSS 变量，深色与浅色主题都自动适配。
  */
 
@@ -415,7 +416,7 @@ export function KlineChart({
   const hoverBar = hover != null && hover >= 0 && hover < bars.length ? bars[hover] : null;
 
   return (
-    <div className="dw-chart" ref={hostRef} onMouseLeave={() => setHover(null)}>
+    <div className="mkt-canvas" ref={hostRef} onMouseLeave={() => setHover(null)}>
       <canvas
         ref={canvasRef}
         style={{ display: 'block', width: '100%', height: '100%' }}
@@ -432,13 +433,13 @@ export function KlineChart({
       />
       {hoverBar && (
         <div
-          className="dw-tip"
+          className="mkt-tip"
           style={{
             left: Math.min(Math.max(hoverX + 12, 8), Math.max(8, size.w - 250)),
             top: 10,
           }}
         >
-          <div className="dw-tip-time">{fmtTime(hoverBar.time, interval)}</div>
+          <div className="mkt-tip-time">{fmtTime(hoverBar.time, interval)}</div>
           <div>开 <b>{fmtPrice(hoverBar.open)}</b> 高 <b>{fmtPrice(hoverBar.high)}</b></div>
           <div>低 <b>{fmtPrice(hoverBar.low)}</b> 收 <b>{fmtPrice(hoverBar.close)}</b></div>
           <div>量 <b>{fmtVolume(hoverBar.volume)}</b></div>

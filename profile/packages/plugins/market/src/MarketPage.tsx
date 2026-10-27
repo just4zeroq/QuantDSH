@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Vela } from '@luxalgo/vela';
 import type { ChartBar, Interval } from './domain';
 import { MARKET_LABEL, INTERVALS, toVelaTimeframe } from './domain';
+import { KlineChart, OVERLAY_META, type ChartBar as CanvasBar, type OverlayId } from './KlineChart';
 import {
   createDatahubClient,
   resolveEndpointAsync,
@@ -13,7 +14,11 @@ import {
 } from './datahub/client';
 
 // Vela™ (LuxAlgo, Apache-2.0) 的图例水印默认开启，按许可要求保留（等价署名）。
-// 这里直接用其离线 `data` 通道：把守护进程里取出的 OHLCV 喂给图表，不接任何外部行情源。
+// 这里直接用其离线 `data` 通道：把数据服务里取出的 OHLCV 喂给图表，不接任何外部行情源。
+//
+// 两个视图共用同一份 bar 数据，切换不重新取数：
+//   看盘（Vela）= 缩放/平移/十字光标，日常看盘；
+//   指标（Canvas）= MA/EMA/BOLL + 成交量 + MACD 的固定叠加，按产品口径配色。
 type VelaChart = InstanceType<typeof Vela>;
 
 const styles = `
@@ -29,6 +34,17 @@ const styles = `
 .mkt-btn{font:inherit;font-size:12px;padding:5px 12px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2,#dce2e9);background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary,#1d2129);cursor:pointer}
 .mkt-btn.primary{background:var(--dsw-alias-brand,#3a6df0);border-color:var(--dsw-alias-brand,#3a6df0);color:#fff}
 .mkt-btn:disabled{opacity:.5;cursor:not-allowed}
+.mkt-pill{font:inherit;font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2,#dce2e9);background:transparent;color:var(--dsw-alias-label-secondary,#657185);cursor:pointer;line-height:1.2}
+.mkt-pill.active{background:var(--dsw-alias-bg-layer-2,#e8f0ff);border-color:var(--dsw-alias-brand,#3a6df0);color:var(--dsw-alias-label-primary,#1d2129);font-weight:600}
+.mkt-chips{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--dsw-alias-border-l2,#dce2e9);flex:none}
+.mkt-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 9px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2,#dce2e9);cursor:pointer;user-select:none;color:var(--dsw-alias-label-secondary,#657185);background:transparent}
+.mkt-chip.on{color:var(--dsw-alias-label-primary,#1d2129);border-color:currentColor}
+.mkt-chip i{width:7px;height:7px;border-radius:50%;display:inline-block}
+/* 指标视图（Canvas）自带的三个类：KlineChart 只负责画，版式仍由所在页面给。 */
+.mkt-canvas{position:relative;flex:1;min-height:0;width:100%;cursor:crosshair}
+.mkt-tip{position:absolute;pointer-events:none;z-index:5;background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l2,#dce2e9);border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.7;color:var(--dsw-alias-label-secondary,#657185);box-shadow:0 6px 20px rgba(0,0,0,.12);min-width:180px}
+.mkt-tip b{color:var(--dsw-alias-label-primary,#1d2129);font-family:ui-monospace,Menlo,Consolas,monospace}
+.mkt-tip-time{color:var(--dsw-alias-label-primary,#1d2129);font-weight:600;margin-bottom:2px}
 `;
 
 function toChartBar(b: BarWire): ChartBar {
@@ -75,6 +91,24 @@ export function MarketPage({ nowTs: _nowTs }: { nowTs: number }) {
   const [barsError, setBarsError] = useState<string | null>(null);
   const [barCount, setBarCount] = useState<number>(0);
   const [refreshNonce, setRefreshNonce] = useState(0);
+
+  // 两个视图共用这一份数据：切视图不重新取数，也不会出现"两个图看到不同的 bar"。
+  const [bars, setBars] = useState<CanvasBar[]>([]);
+  const [view, setView] = useState<'vela' | 'indicators'>('vela');
+  const [overlays, setOverlays] = useState<Set<OverlayId>>(
+    () => new Set<OverlayId>(['ma5', 'ma10', 'ma20', 'boll']),
+  );
+  const [showVolume, setShowVolume] = useState(true);
+  const [showMacd, setShowMacd] = useState(false);
+
+  const toggleOverlay = (id: OverlayId) => {
+    setOverlays((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // 把目录按 symbol 聚合，得到可选项；每个 symbol 下挂它已有的周期。
   const bySymbol = useMemo(() => {
@@ -148,7 +182,7 @@ export function MarketPage({ nowTs: _nowTs }: { nowTs: number }) {
         const authFailure = e instanceof DatahubError && (e.status === 401 || e.status === 403);
         setCatalogError(
           e instanceof DatahubError && e.code === 'unreachable'
-            ? '数据服务未连接：请先启动 quantdsh-datahub（cargo run -p quantdsh-datahub）'
+            ? '数据服务未连接：它会随应用自动启动；若一直连不上，请看 %LOCALAPPDATA%\\QuantDSH\\data\\datahub.log'
             : authFailure
               ? '数据服务拒绝了访问令牌：请刷新页面；若仍失败，请重新打开 QuantDSH。'
               : e instanceof Error
@@ -175,7 +209,7 @@ export function MarketPage({ nowTs: _nowTs }: { nowTs: number }) {
         // 默认取最近 ~5000 根 bar（覆盖多数周期的较完整历史）。
         const to = Date.now();
         const from = to - 365 * 86_400_000;
-        const bars: BarWire[] = await withAuthRetry((client) =>
+        const rows: BarWire[] = await withAuthRetry((client) =>
           client.bars({
             symbol,
             interval: intervalSel,
@@ -185,7 +219,18 @@ export function MarketPage({ nowTs: _nowTs }: { nowTs: number }) {
           }),
         );
         if (cancelled) return;
-        const chartBars = bars.map(toChartBar).sort((a, b) => a.time - b.time);
+        const chartBars = rows.map(toChartBar).sort((a, b) => a.time - b.time);
+        // 指标视图要求 volume 一定有值（缺量按 0 画），domain 的 ChartBar 允许缺省。
+        setBars(
+          chartBars.map((b) => ({
+            time: b.time,
+            open: b.open,
+            high: b.high,
+            low: b.low,
+            close: b.close,
+            volume: b.volume ?? 0,
+          })),
+        );
         const chart = chartRef.current;
         if (chart) {
           await chart.setMarket({
@@ -206,6 +251,19 @@ export function MarketPage({ nowTs: _nowTs }: { nowTs: number }) {
       cancelled = true;
     };
   }, [chartReady, symbol, intervalSel, refreshNonce]);
+
+  // 从「指标」切回「看盘」时容器刚从 display:none 恢复，尺寸要重新量一次，否则画布是 0×0。
+  useEffect(() => {
+    if (view !== 'vela') return;
+    const timer = window.setTimeout(() => {
+      try {
+        chartRef.current?.resize();
+      } catch {
+        /* chart 已销毁 */
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [view]);
 
   // 当切换 symbol 时，若当前区间不在该 symbol 可用区间里，回退到第一个可用区间。
   function onPickSymbol(next: string) {
@@ -258,19 +316,86 @@ export function MarketPage({ nowTs: _nowTs }: { nowTs: number }) {
         <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary,#959da6)' }}>
           {loadingCatalog ? '目录加载中…' : `共 ${bySymbol.length} 个标的`}
         </span>
+        <div className="mkt-chips" style={{ marginLeft: 'auto', border: 0, padding: 0 }}>
+          <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary,#959da6)' }}>视图</span>
+          {[
+            { id: 'vela' as const, label: '看盘' },
+            { id: 'indicators' as const, label: '指标' },
+          ].map((v) => (
+            <button
+              key={v.id}
+              className={`mkt-pill${view === v.id ? ' active' : ''}`}
+              onClick={() => setView(v.id)}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {view === 'indicators' && (
+        <div className="mkt-chips">
+          <span style={{ fontSize: 12, color: 'var(--dsw-alias-label-tertiary,#959da6)' }}>叠加</span>
+          {OVERLAY_META.map((m) => (
+            <label
+              key={m.id}
+              className={`mkt-chip${overlays.has(m.id) ? ' on' : ''}`}
+              style={overlays.has(m.id) ? { color: m.color, borderColor: m.color } : undefined}
+            >
+              <input
+                type="checkbox"
+                checked={overlays.has(m.id)}
+                onChange={() => toggleOverlay(m.id)}
+                style={{ display: 'none' }}
+              />
+              <i style={{ background: m.color }} />
+              {m.label}
+            </label>
+          ))}
+          <label className={`mkt-chip${showVolume ? ' on' : ''}`}>
+            <input
+              type="checkbox"
+              checked={showVolume}
+              onChange={() => setShowVolume((v) => !v)}
+              style={{ display: 'none' }}
+            />
+            <i style={{ background: 'rgba(122,134,153,.8)' }} />
+            成交量
+          </label>
+          <label className={`mkt-chip${showMacd ? ' on' : ''}`}>
+            <input
+              type="checkbox"
+              checked={showMacd}
+              onChange={() => setShowMacd((v) => !v)}
+              style={{ display: 'none' }}
+            />
+            <i style={{ background: 'rgba(58,109,240,.8)' }} />
+            MACD
+          </label>
+        </div>
+      )}
 
       {catalogError && <p className="mkt-err">{catalogError}</p>}
       {!catalogError && !loadingCatalog && bySymbol.length === 0 && (
         <div className="mkt-empty">
-          目录为空。先用「数据」工作台创建数据集并同步，或在该工作台用 CSV 导入行情，
-          再回到这里画图。
+          目录为空。先到「数据工坊 → 数据接入」启用一个数据源、建一个接入任务并运行，
+          或用「手动导入」灌一份 CSV，再回到这里画图。
         </div>
       )}
 
-      <div className="mkt-chart">
+      {/* Vela 只在首次挂载时创建，所以容器常驻、用 display 切换：反复切视图不会丢实例。 */}
+      <div className="mkt-chart" style={view === 'vela' ? undefined : { display: 'none' }}>
         <div ref={containerRef} aria-label="行情图表" />
       </div>
+      {view === 'indicators' && (
+        <KlineChart
+          bars={bars}
+          interval={String(intervalSel)}
+          overlays={overlays}
+          showVolume={showVolume}
+          showMacd={showMacd}
+        />
+      )}
 
       <div className="mkt-status">
         <span>{symbol ? `${symbol} · ${intervalSel}` : '未选择标的'}</span>

@@ -990,6 +990,28 @@ fetch → imported 表 → 门禁检查 → 通过：提升到 bronze（同一�
 更糟的是两边漂移之后，界面允许的组合后端不支持，用户点「创建任务」得到一个 400——
 这正是上一轮 `unauthorized` / 5 个 tab 那种「界面与后端不同源」的同类问题。
 
+### 7.1 这一版实际落地的映射（与上表的差异要如实记）
+
+上表是按原型设计的目标态，其中几个端点这一版还没有。页面只用**已存在**的接口，
+所以下面这些是"用现有接口做了等价的事"，不是"忘了做"：
+
+| 原目标 | 实际实现 | 说明 |
+|---|---|---|
+| `GET /api/datasets/summary` 一次算好 KPI | 前端用 `GET /api/datasets` + `domain.summarizeDataset` 汇总 | 数据集量级是几十条；等上了分页再挪到后端 |
+| `GET /api/quality/:key` | `GET /api/quality/latest?dataset_key=` + `POST /api/quality` | 前者取最近一次结论，后者触发重跑 |
+| `import_batches.gate_passed` + `reject_detail` | `GET /api/imports`（同一批审计记录） | 字段名是 `imports`，返回体已有 gate 结论与坏行样本 |
+| 任务表的「下次触发 / 最近一批」 | `GET /api/jobs` 的 `cron` / `last_run_at` / `last_error` | `last_batch` 还没内联，故不显示批次号 |
+| 新建抽屉的耗时预估（`rows_per_sec`） | 不做预估 | 后端还没上报吞吐；宁可不显示，也不写死 11 ms 骗人 |
+| 抽屉里的「数据类型」选择 | 固定 `ohlcv` | V1 只做 K 线；等 `data_type` 扩到资金费率再放开 |
+| 「补缺口」跳转建 backfill 任务 | 未做 | 需要 quality finding 带区间明细，属 V1.1 |
+| 「导出报告」 | 前端导出 JSON（台账 + 覆盖率 + 体检摘要） | 不是 PDF；要 PDF 走办公技能那条链 |
+| 「全部自检」 | 逐个 `POST /api/sources/:id/probe`（仅启用项） | 串行，避免同时打多家交易所 |
+| 「全库巡检」 | 逐个 `POST /api/quality`（上限 50 个数据集） | 单个体检失败不中断整轮 |
+
+另：**K 线已不属于数据工坊**。`data` 包里的自绘指标图（MA/EMA/BOLL + 量 + MACD）整体迁到
+`market`，与 Vela 看盘图并列成「看盘 / 指标」两个视图，共用同一份 `/api/bars` 数据。
+数据工坊只剩「数据接入」「数据资产」两个页签。
+
 ---
 
 ## 8. 迁移与分期
@@ -1007,16 +1029,19 @@ fetch → imported 表 → 门禁检查 → 通过：提升到 bronze（同一�
 **V1.1（前端按原型重做）**
 
 8. 抽 `quantdsh-datahub-client` 共享包（端点发现 + 401 重试 + 类型），`data` 与 `market` 各删一份重复实现。
-9. 单插件 `quantdsh-plugin-dataworkshop`，两个页签（数据接入 / 数据资产）按已确认原型实现；
-   K 线整块从数据工坊移到 `market`。
-10. 数据源管理页：新增/编辑/启停/探测，编辑 `base_urls`、`inst_types`、`url_overrides`。
+9. ~~单插件 `quantdsh-plugin-dataworkshop`，两个页签（数据接入 / 数据资产）按已确认原型实现；
+   K 线整块从数据工坊移到 `market`。~~ **已做**：没有新建插件包（`data` 包本身就是这个身份），
+   直接把它改成双页签；K 线迁到 `market`（见 §7.1 末段）。
+10. ~~数据源管理页：新增/编辑/启停/探测，编辑 `base_urls`、`inst_types`、`url_overrides`。~~ **已做**：
+   新增/编辑/启停/探测都有了；`url_overrides` 仍走 `config.url_overrides` 的 JSON，没做独立表单。
+11. 抽共享包这一步**还没做** —— 现在 `data` 与 `market` 各自仍有一份 `datahub/client.ts`。
 
 **V2（数据类型扩展）**
 
-11. `funding_rates` / `open_interest`（Binance 的 OI 历史只有 30 天，越早接越好）。
-12. `trades` / `orderbook`（逐笔按区间拉、盘口只做采样，默认关闭）。
-13. 轮询调度器（整分 +3s、抖动、全局并发上限、落后转小段回补）。
-14. 跨周期一致性检查、缺口 → 回补闭环、体检历史对比。
+12. `funding_rates` / `open_interest`（Binance 的 OI 历史只有 30 天，越早接越好）。
+13. `trades` / `orderbook`（逐笔按区间拉、盘口只做采样，默认关闭）。
+14. 轮询调度器（整分 +3s、抖动、全局并发上限、落后转小段回补）。
+15. 跨周期一致性检查、缺口 → 回补闭环、体检历史对比。
 
 **明确不进路线图**：WebSocket 接入。数据层的最后一环是「可重放的历史底表」，
 策略模块若需要实时信号，是另一条链路，它消费 WS 但不往 `ohlcv` 里写。

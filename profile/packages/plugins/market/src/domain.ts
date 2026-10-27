@@ -4,8 +4,8 @@
 // SEPARATE workbench package from the data workbench (the host registry allows
 // exactly one workbench descriptor per plugin package, and the installed
 // manifest's descriptor must match what the client declares byte-for-byte).
-// It still talks to the SAME Rust daemon (quantdsh-datahub) over the SAME HTTP
-// contract — so the bars it draws are exactly what the data workbench audits.
+// It still talks to the SAME local data service over the SAME HTTP contract —
+// so the bars it draws are exactly what the data workbench audits.
 //
 // Vela's offline `data` bar shape is `{ time, open, high, low, close, volume? }`
 // with `time` = bar OPEN time in epoch MILLISECONDS. Our wire bars use `ts`
