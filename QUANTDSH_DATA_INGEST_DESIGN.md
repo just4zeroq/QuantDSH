@@ -1059,6 +1059,36 @@ python scripts/verify_bundled_runtime.py
 runtime\python\python.exe -s -B -c "import fastapi, uvicorn, ccxt, duckdb"
 ```
 
+### 9.1 为什么安装包里有两个 Python（不共用 `primary-runtime`）
+
+安装包里确实已经有一份 CPython：`quantdsh-runtime/primary-runtime/dependencies/python`
+（3.12.14，146 MB，预装 numpy 2.3.5 / pandas 3.0.1 / lxml / Pillow / python-docx / python-pptx /
+openpyxl / XlsxWriter），那是桌面端给 Office 类技能用的**官方运行时**。既然有，为什么还要在
+`runtime/python` 再放一份 206 MB？四条理由，任一条都足以否掉共用：
+
+1. **它是官方产物，带来源回执**。`primary-runtime/runtime.json` + `.quantdsh-source-artifact.json`
+   记录了上游 exe 的 url / size / sha512 与 `payloadDigest`，`verify-packaged.mjs` 会核这份回执。
+   往里面 `pip install` 之后，树里已经不只是官方 payload，回执却仍声明自己是——这是本仓库
+   所有校验机制专门要防的那种「自欺」。
+2. **它的包集合是被声明的**。`runtime.json` 明确写了 `pythonPackages`（numpy 2.3.5、pandas 3.0.1…），
+   而 Office 计算链路会**硬校验**：`official-operation.mjs` 里 `runtime.pythonDistributions.numpy !== '2.3.5'`
+   直接抛 `HOST_DEPENDENCY_UNAVAILABLE`。`pip install fastapi ccxt` 会连带升级 `typing_extensions`
+   这类公共依赖，一旦动了 numpy，坏的是 Office 导出，报错却指向「专业计算不可用」——排查成本极高。
+3. **修复流程会整棵替换**。`runtime_pack.rs` 的离线修复/还原是以 `primary-runtime` 为单位的，
+   我们把 wheel 塞进去，任何一次修复都把它们抹掉，行情服务随即起不来，而且是在「修好了别的东西」之后静默失败。
+4. **生命周期不同**。官方运行时的版本跟 `upstream.json` 走（Node / pnpm / Python 三者一起升），
+   行情服务的依赖跟 `requirements.txt` 走。绑在一起意味着上游一次 Python 小版本升级就可能把
+   `duckdb==1.5.6` / `ccxt` 的 cp312 wheel 撞坏，而这条链路上没有任何人会预期到这种耦合。
+
+**如果将来必须省这 100 MB**，可行的折中是「共用解释器、不共用环境」：用
+`primary-runtime/dependencies/python/python.exe` 启动我们的服务，我们自己的一份 `site-packages`
+放在 carrier 拥有的目录（`<data_dir>` 下的 pyenv，或 resources 里我们自己的目录），靠 `PYTHONPATH`
+注入。官方环境一个字节都不动，修复流程也不碰它。代价是多一套「首启解包 / ABI 校验（cp312 vs
+上游换 3.13）」逻辑。V1 不做：现在 installer 主体已经 ~1 GB，省 100 MB 换这四个风险不划算。
+
+**两个 Python 各自服务的对象互不重叠**，所以「重复」只在磁盘上，不在运行时：
+`primary-runtime/dependencies/python` 跑 Office 脚本，`runtime/python` 跑行情服务，两者不互相 import。
+
 ---
 
 ## 10. 风险与未决
